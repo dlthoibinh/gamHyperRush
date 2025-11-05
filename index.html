@@ -446,7 +446,7 @@
     speed: CONFIG.GAME.baseSpeed,
     lastSpawn: 0, spawnIdx: 0,
     lane: 1.0, desiredLane: 1.0, laneV:0,
-    playerY: H-120,
+    playerY: H * 0.6,
     entities: [],
     energy: 60,
     holding:false,
@@ -454,7 +454,7 @@
     shake: 0,
     particles: [],
     surgeMs: 0, nextSurge: CONFIG.GAME.surgeEvery,
-    dragging:false, dragStartX:0, dragStartLane:1.0, hasDragged:false, dragStartT:0,
+    dragging:false, dragStartX:0, dragStartLane:1.0, hasDragged:false, dragStartT:0, lastDragT: 0,
     combo:0, comboT:0,
     grace: CONFIG.GAME.graceMs,
     stage:1, lastStageAnnounce:0,
@@ -500,6 +500,7 @@
     state.dragging=true; state.dragStartX=e.clientX; state.dragStartLane=state.desiredLane; state.dragStartT=now();
     state.hasDragged=false; canvas.setPointerCapture?.(e.pointerId);
     state.holding=true; await AudioKit.prepare(); AudioKit.unlock(); AudioKit.sfx('freeze_on'); e.preventDefault();
+    state.lastDragT = now(); 
   }, {passive:false});
   canvas.addEventListener('pointermove', (e)=>{
     if (!state.dragging) return;
@@ -508,6 +509,7 @@
     const laneW=(W-MARGIN*2)/CONFIG.GAME.lanes;
     const cont=state.dragStartLane + dx/laneW;
     state.desiredLane=clamp(cont,0,CONFIG.GAME.lanes-1); e.preventDefault();
+    state.lastDragT = now();  
   }, {passive:false});
   function endPointer(e){
     if (!state.dragging) return;
@@ -600,7 +602,8 @@
 
     smoothLane(dtEff);
     /* ===== Auto-snap về giữa làn (khi buông tay) ===== */
-    if (AUTO_SNAP.enable && !state.dragging && !state.holding) {
+    const idleTooLong = state.dragging && (now() - state.lastDragT > 300);
+    if (AUTO_SNAP.enable && !state.holding && (!state.dragging || idleTooLong)) {
       const nearest = Math.round(state.desiredLane);     // làn chuẩn (0,1,2…)
       const diff    = nearest - state.desiredLane;
       if (Math.abs(diff) > 0.001) {                      // còn lệch
