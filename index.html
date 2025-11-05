@@ -35,15 +35,15 @@
     #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:6px 10px;background:rgba(250,250,250,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;opacity:0;transition:opacity .2s, transform .2s}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
 
-    /* Force-hide any [hidden] (fix một số trình duyệt cache CSS) */
+    /* Force-hide any [hidden] */
     [hidden]{display:none !important;}
     .ui[hidden]{display:none !important;}
 
-    /* Mobile gestures: dồn hết cho canvas, khoá overscroll/gesture */
+    /* Mobile gestures */
     #game{ touch-action:none; }
     html,body,#wrap{ overscroll-behavior:none; }
 
-    /* Nút trợ giúp điều khiển trên mobile */
+    /* Nút điều khiển phụ (mobile) */
     .touch-ctrl{
       position:absolute;left:0;right:0;bottom:18px;
       display:flex;justify-content:space-between;padding:0 18px;pointer-events:none
@@ -112,7 +112,6 @@
     GAME: {
       lanes: 3,
       baseSpeed: 135,
-      laneMoveMs: 110,
       accel: 0.06,
       spawnEvery: 740,
       spawnAccel: 0.986,
@@ -121,7 +120,11 @@
       regenPassive: 0.003, // % per 10ms when not holding
       regenNear: 6,        // % per near-miss
       regenOrb: 10,        // % per orb
-      freezeSlow: 0.25     // time scale while freezing
+      freezeSlow: 0.25,    // time scale while freezing
+      laneMoveMs: 110,     // tween 1 bước/1 lần
+      minGapObPx: 140,     // khoảng cách tối thiểu theo làn cho obstacle
+      minGapOrbPx: 110,
+      maxSpawnAttempts: 3
     }
   };
 
@@ -130,7 +133,6 @@
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const now = ()=>performance.now();
 
-  // device id (local)
   function getDeviceId(){
     const k='hrfz_device_id'; let id=localStorage.getItem(k);
     if(!id){ id=crypto.getRandomValues(new Uint32Array(4)).join('-'); localStorage.setItem(k,id); }
@@ -175,12 +177,9 @@
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain' },
         body,
-        // signal với timeout nhỏ tránh treo
         signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
       }).catch(()=>{});
-    } catch (e) {
-      console.warn('postScore', e);
-    }
+    } catch (e) { console.warn('postScore', e); }
   }
 
   /* ====================== Game State =================== */
@@ -201,25 +200,23 @@
     lastTime: 0,
     energy: 60, // onboarding
     holding:false,
-    lastNearT: 0
+    lastNearT: 0,
+    // tween đổi làn
     laneFrom: 1,
     laneTo: 1,
     laneT: 1,          // 1 = xong tween; 0->1 = đang di chuyển
-    pendingDir: 0,
+    pendingDir: 0
   };
 
   /* ====================== Input ======================= */
   function switchLane(dir){
-    // Nếu đang di chuyển, xếp hàng đợi (chỉ giữ hướng cuối)
     if (state.laneT < 1) { state.pendingDir = Math.sign(dir); return; }
-    // Bắt đầu 1 bước chuyển làn mới
     const next = clamp(state.laneTo + Math.sign(dir), 0, CONFIG.GAME.lanes - 1);
-    if (next === state.laneTo) return;  // mép đường -> bỏ qua
+    if (next === state.laneTo) return;
     state.laneFrom = state.laneTo;
     state.laneTo   = next;
     state.laneT    = 0;
   }
-  
 
   // Keyboard
   window.addEventListener('keydown', (e)=>{
@@ -230,7 +227,7 @@
   }, {passive:true});
   window.addEventListener('keyup', (e)=>{ if (e.key===' ') state.holding=false; }, {passive:true});
 
-  // Pointer (chuẩn mobile + desktop)
+  // Pointer (mobile + desktop)
   let pointerId=null, startX=0;
   canvas.addEventListener('pointerdown', (e)=>{
     if (pointerId!==null) return;
@@ -238,23 +235,18 @@
     startX=e.clientX; state.holding=true;
     if (e.cancelable) e.preventDefault();
   }, {passive:false});
-
   canvas.addEventListener('pointermove', (e)=>{
     if (e.pointerId!==pointerId) return;
     const dx=e.clientX-startX;
     if (Math.abs(dx)>24){ switchLane(dx>0?1:-1); startX=e.clientX; }
     if (e.cancelable) e.preventDefault();
   }, {passive:false});
-
   function endPointer(e){
     if (e.pointerId!==pointerId) return;
     state.holding=false;
     try{ canvas.releasePointerCapture(pointerId); }catch(_){}
     const dx=e.clientX-startX;
-    if (Math.abs(dx)<20){ // tap nhẹ => trái/phải theo nửa màn
-      const r=canvas.getBoundingClientRect();
-      switchLane( e.clientX < r.left + r.width/2 ? -1 : 1 );
-    }
+    if (Math.abs(dx)<20){ const r=canvas.getBoundingClientRect(); switchLane(e.clientX < r.left + r.width/2 ? -1 : 1); }
     pointerId=null;
     if (e.cancelable) e.preventDefault();
   }
@@ -276,40 +268,46 @@
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
     state.spawnEvery *= Math.pow(CONFIG.GAME.spawnAccel, dtEff/16.6);
     state.score += dtEff * 0.06 * ( (state.lastNearT && (now()-state.lastNearT<1200)) ? 1.15 : 1 );
-
     $('#score').textContent = String(Math.floor(state.score));
 
-    // smooth lane
-    // tween lane: 1 lần bấm = 1 làn, không vượt quá
+    // tween lane
     if (CONFIG.GAME.laneMoveMs <= 0) {
-      state.lane = state.laneTo; // nhảy tức thì
+      state.lane = state.laneTo;
     } else {
       if (state.laneT < 1) {
         state.laneT = Math.min(1, state.laneT + dtEff / CONFIG.GAME.laneMoveMs);
-        // easing: easeOutCubic
-        const t = state.laneT, e = 1 - Math.pow(1 - t, 3);
+        const t = state.laneT, e = 1 - Math.pow(1 - t, 3); // easeOutCubic
         state.lane = state.laneFrom + (state.laneTo - state.laneFrom) * e;
       } else if (state.pendingDir) {
-        // thực thi lệnh kế tiếp nếu có hàng đợi
         const d = state.pendingDir; state.pendingDir = 0;
         const next = clamp(state.laneTo + d, 0, CONFIG.GAME.lanes - 1);
-        if (next !== state.laneTo) {
-          state.laneFrom = state.laneTo;
-          state.laneTo   = next;
-          state.laneT    = 0;
-        }
+        if (next !== state.laneTo) { state.laneFrom = state.laneTo; state.laneTo = next; state.laneT = 0; }
       }
     }
 
-
-    // spawn
+    // spawn (giữ khoảng cách tối thiểu theo làn)
     state.lastSpawn += dtEff;
     while (state.lastSpawn >= state.spawnEvery) {
       state.lastSpawn -= state.spawnEvery;
-      const lane = Math.floor(state.rng()*CONFIG.GAME.lanes);
-      const roll = state.rng();
-      if (roll < CONFIG.GAME.orbChance) state.entities.push({type:'orb', lane, y:-40});
-      else state.entities.push({type:'ob', lane, y:-40});
+
+      const type = (state.rng() < CONFIG.GAME.orbChance) ? 'orb' : 'ob';
+      let lane = Math.floor(state.rng()*CONFIG.GAME.lanes);
+      let ok = false, tries = 0;
+
+      do {
+        let lastY = null;
+        for (let i = state.entities.length - 1; i >= 0; i--) {
+          const e = state.entities[i];
+          if (e.lane === lane) { lastY = e.y; break; }
+        }
+        const need = (type === 'ob' ? (CONFIG.GAME.minGapObPx||140) : (CONFIG.GAME.minGapOrbPx||110));
+        if (lastY === null || (lastY + 40) >= need) { // -40 spawn y
+          state.entities.push({ type, lane, y: -40 });
+          ok = true; break;
+        }
+        lane = (lane + 1) % CONFIG.GAME.lanes;
+      } while (++tries < (CONFIG.GAME.maxSpawnAttempts||3));
+      // nếu chưa đủ gap ở cả 3 làn → bỏ lượt spawn
     }
 
     // move + collisions
@@ -385,14 +383,40 @@
     ctx.restore();
   }
 
+  // Obstacle: đỏ trầm + viền gọn, KHÔNG xoay
   function drawObstacle(x,y){
-    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.sin(performance.now()/250 + x)*0.15); ctx.fillStyle='rgba(239,68,68,.92)';
-    roundRect(-18,-18,36,36,8,true,false); ctx.restore();
+    ctx.save(); ctx.translate(x,y);
+
+    // bóng
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    ctx.beginPath(); ctx.ellipse(0,16,16,6,0,0,Math.PI*2); ctx.fill();
+
+    // thân
+    const grd = ctx.createLinearGradient(0,-18,0,18);
+    grd.addColorStop(0,'#c64040');  // đỏ trầm trên
+    grd.addColorStop(1,'#9f2c2c');  // đỏ nâu dưới
+    ctx.fillStyle = grd;
+    roundRect(-18,-18,36,36,8,true,false);
+
+    // viền
+    ctx.strokeStyle='rgba(0,0,0,.40)'; ctx.lineWidth=1.5;
+    roundRect(-18,-18,36,36,8,false,true);
+
+    // highlight mảnh
+    ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(-14,-12); ctx.lineTo(14,-12); ctx.stroke();
+
+    ctx.restore();
   }
+
   function drawOrb(x,y){
-    ctx.save(); ctx.translate(x,y); const r=10+Math.sin(performance.now()/120 + x)*2;
-    const g=ctx.createRadialGradient(0,0,2,0,0,r); g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(1,'rgba(14,165,233,.9)');
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(x,y);
+    const r=10+Math.sin(performance.now()/120 + x)*2;
+    const g=ctx.createRadialGradient(0,0,2,0,0,r);
+    g.addColorStop(0,'rgba(255,255,255,0.85)');
+    g.addColorStop(1,'rgba(56,189,248,0.9)'); // #38bdf8
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    ctx.restore();
   }
 
   function roundRect(x,y,w,h,r,fill,stroke){
@@ -444,7 +468,7 @@
     state.entities.length=0; state.lastTime=now();
     state.energy = 60;
     $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true;
-    $('#touchCtrl').hidden=false; // hiện nút phụ mobile
+    $('#touchCtrl').hidden=false;
     $('#score').textContent='0'; $('#best').textContent=String(state.best);
   }
 
