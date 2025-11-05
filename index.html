@@ -168,7 +168,6 @@
       surgeMs: 3000,
       graceMs: 1500
     }
-
   };
   const LOW = (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=4);
   if (LOW){ CONFIG.PERF.dprMax=1.2; CONFIG.PERF.maxParticles=120; }
@@ -208,16 +207,33 @@
     return s ^ (getDeviceId().split('-')[0]>>>0);
   }
 
-  /* ====== Spawn lookup table (giảm tính mũ mỗi frame) ====== */
-  // ====== Spawn lookup table (giảm tính mũ mỗi frame + có sàn) ======
+  /* ====== Spawn lookup table (giảm tính mũ mỗi frame + có sàn) ====== */
   const SPAWN_TABLE = (function makeSpawnTable(base, accel, minMs, limit=4096){
-    const out = [];
-    let v = base, i = 0;
+    const out = []; let v = base, i = 0;
     while (i < limit && v > minMs) { out.push(v); v *= accel; i++; }
-    out.push(minMs);                    // luôn kết thúc ở sàn, không về 0
+    out.push(minMs);
     return new Float32Array(out);
   })(CONFIG.GAME.spawnEvery, CONFIG.GAME.spawnAccel, CONFIG.GAME.minSpawnEvery);
 
+  /* ----- Hitbox & AABB helpers (chuẩn) ----- */
+  const HIT = {
+    P_W: 30, P_H: 30,   // người chơi ~32px → hitbox 30x30
+    OB_W: 36, OB_H: 36, // vật cản vuông 36
+    NEAR_PAD: 8         // nới biên near-miss
+  };
+  function aabb(ax, ay, aw, ah, bx, by, bw, bh){
+    return (Math.abs(ax - bx) <= (aw + bw) * 0.5) && (Math.abs(ay - by) <= (ah + bh) * 0.5);
+  }
+  function wouldCollideIfSnapped(toLane, py){
+    const pxSnap = laneX(toLane);
+    for (let i = 0; i < state.entities.length; i++) {
+      const e = state.entities[i];
+      if (e.type !== 'ob') continue;
+      const ex = laneX(e.lane), ey = e.y;
+      if (aabb(pxSnap, py, HIT.P_W, HIT.P_H, ex, ey, HIT.OB_W, HIT.OB_H)) return true;
+    }
+    return false;
+  }
 
   /* =============== Audio (sprite + synth + bgm) =============== */
   const AudioKit = (function(){
@@ -241,7 +257,6 @@
       const c=ensure(); const src=c.createBufferSource(); src.buffer=buf; src.connect(master);
       if (dur) src.start(c.currentTime + time, offset, dur); else src.start(c.currentTime + time, offset);
     }
-    // simple sprite map (tự điều chỉnh offset nếu anh làm file riêng)
     const SPR = { move:[0.00,0.08], near:[0.10,0.10], orb:[0.22,0.16], freeze_on:[0.40,0.12], hit:[0.56,0.22], taunt:[0.80,0.20] };
 
     function tone(opt){
@@ -263,7 +278,6 @@
     }
     function sfx(name){
       if (sfxBuf && SPR[name]){ const [off,dur]=SPR[name]; return playBuf(sfxBuf,0,off,dur); }
-      // Fallback synth
       switch(name){
         case 'move': tone({type:'square',freq:640,gain:0.18,decay:0.06,release:0.06}); break;
         case 'near': tone({type:'triangle',freq:880,gain:0.22,decay:0.04}); break;
@@ -346,7 +360,7 @@
   }
 
   /* =============== Input =============== */
-  function stepLane(dir){ // dùng cho phím & tap
+  function stepLane(dir){
     const next = clamp(Math.round(state.desiredLane) + Math.sign(dir), 0, CONFIG.GAME.lanes-1);
     if (next!==Math.round(state.desiredLane)){ state.desiredLane = next; AudioKit.sfx('move'); }
   }
@@ -360,8 +374,8 @@
   }, {passive:true});
   addEventListener('keyup', (e)=>{ if (e.key===' ') state.holding=false; }, {passive:true});
 
-  // Pointer – analog drag (anti-bounce)
-  const TAP_TIME_MAX = 160; // ms
+  // Pointer – analog drag
+  const TAP_TIME_MAX = 160;
   const DRAG_PX_THRESHOLD = 10 * (window.devicePixelRatio || 1);
 
   canvas.addEventListener('pointerdown', async (e)=>{
@@ -381,7 +395,7 @@
     const dx = e.clientX - state.dragStartX;
     if (Math.abs(dx) > DRAG_PX_THRESHOLD) state.hasDragged = true;
     const laneW = (W - MARGIN*2)/CONFIG.GAME.lanes;
-    const cont = state.dragStartLane + dx / laneW;        // liên tục theo tay
+    const cont = state.dragStartLane + dx / laneW;
     state.desiredLane = clamp(cont, 0, CONFIG.GAME.lanes-1);
     e.preventDefault();
   }, {passive:false});
@@ -402,7 +416,7 @@
   canvas.addEventListener('pointercancel', endPointer, {passive:false});
   canvas.addEventListener('pointerleave', endPointer, {passive:false});
 
-  // Tilt control (optional)
+  // Tilt control
   $('#optTilt').addEventListener('change', async (e)=>{
     if (e.target.checked){
       try{
@@ -416,7 +430,7 @@
   addEventListener('devicemotion', (ev)=>{
     if (!$('#optTilt').checked || !state.running) return;
     const ax = ev.accelerationIncludingGravity ? ev.accelerationIncludingGravity.x || 0 : 0;
-    const tilt = clamp(ax/6, -1, 1); // [-1,1]
+    const tilt = clamp(ax/6, -1, 1);
     state.desiredLane = clamp(1 + tilt, 0, CONFIG.GAME.lanes-1);
   }, {passive:true});
 
@@ -436,7 +450,6 @@
     if (s !== state.stage){
       state.stage = s;
       $('#stageLabel').textContent = `Stage ${state.stage}`;
-      // tăng độ khó nhẹ nhàng từng stage
       CONFIG.GAME.orbChance = clamp(0.22 - 0.01*(state.stage-1), 0.12, 0.22);
       CONFIG.GAME.minGapObPx = clamp(148 - 4*(state.stage-1), 120, 148);
       if (now()-state.lastStageAnnounce>2000){ toast(`Stage ${state.stage}!`); AudioKit.sfx('taunt'); }
@@ -472,37 +485,51 @@
     if (state.score >= state.nextSurge){ state.surgeMs = CONFIG.GAME.surgeMs; state.nextSurge += CONFIG.GAME.surgeEvery; toast('Cửa hẹp 3s!'); AudioKit.sfx('taunt'); }
     if (state.surgeMs>0) state.surgeMs = Math.max(0, state.surgeMs - dt);
 
-    // Spawn
-    // Spawn (an toàn)
+    // Spawn an toàn
     state.lastSpawn += dtEff;
     const spawnMul = state.surgeMs>0 ? 0.7 : 1;
-    
     let spawned = 0;
     const cap = Math.min(CONFIG.GAME.maxSpawnsPerFrame,
                          CONFIG.PERF.maxEntities - state.entities.length);
-    
     while (state.lastSpawn >= spawnEvery * spawnMul && spawned < cap) {
       state.lastSpawn -= spawnEvery * spawnMul;
       const times = 1 + (state.surgeMs>0 ? 1 : 0);
       for (let k = 0; k < times; k++) trySpawn();
       spawned++;
     }
-    
-    // Nếu backlog lớn do cap, cắt bớt để frame sau không “nổ”
     if (spawned >= cap && state.lastSpawn > spawnEvery * spawnMul * 4) {
       state.lastSpawn = 0;
     }
-     
+
     // Move + collisions
     const px = laneX(state.lane), py = state.playerY;
     for (let i=state.entities.length-1;i>=0;i--) {
       const e = state.entities[i];
       e.y += state.speed * dtEff/1000;
 
-      if (e.type==='ob') {
-        const dx = Math.abs(laneX(e.lane)-px), dy = Math.abs(e.y - py);
-        if (dx < 38 && dy>36 && dy<86 && now()-state.lastNearT>240) {
-          // Near-miss
+      const ex = laneX(e.lane), ey = e.y;
+
+      // ORB bằng AABB nhẹ (hộp ~22)
+      if (e.type === 'orb') {
+        const hitOrb = aabb(px, py, HIT.P_W, HIT.P_H, ex, ey, 22, 22);
+        if (hitOrb) {
+          state.score += 50;
+          state.energy = Math.min(100, state.energy + CONFIG.GAME.regenOrb);
+          state.entities.splice(i,1); flash(120); spawnParticles(px,py,'#38bdf8',12,1.1); AudioKit.sfx('orb'); vibrate(12);
+          continue;
+        }
+      }
+
+      // OBSTACLE: near-miss + collision dùng AABB
+      if (e.type === 'ob') {
+        const collided = (state.grace <= 0) && aabb(px, py, HIT.P_W, HIT.P_H, ex, ey, HIT.OB_W, HIT.OB_H);
+
+        const near = !collided && aabb(
+          px, py, HIT.P_W + HIT.NEAR_PAD, HIT.P_H + HIT.NEAR_PAD,
+          ex, ey, HIT.OB_W + HIT.NEAR_PAD, HIT.OB_H + HIT.NEAR_PAD
+        );
+
+        if (near && now() - state.lastNearT > 240) {
           state.nearMissCount++;
           if (now() - state.comboT < 1200) state.combo++; else state.combo = 1;
           state.comboT = now();
@@ -513,55 +540,40 @@
           state.lastNearT = now();
           AudioKit.sfx('near'); vibrate(10);
         }
-      }
 
-      // Collision (tắt trong grace 1.5s)
-      if (state.grace<=0 && Math.abs(laneX(e.lane)-px) < 36 && Math.abs(e.y - py) < 36) {
-        if (e.type==='orb') {
-          state.score += 50; state.energy = Math.min(100, state.energy + CONFIG.GAME.regenOrb);
-          state.entities.splice(i,1); flash(120); spawnParticles(px,py,'#38bdf8',12,1.1); AudioKit.sfx('orb'); vibrate(12);
-        } else {
+        if (collided) {
           if (state.score > state.best){ state.best = Math.floor(state.score); localStorage.setItem('hrfz_best', state.best); }
           boom(); spawnParticles(px,py,'#e11d48',22,1.6); AudioKit.sfx('hit'); vibrate([50,40,80]);
           return gameOver();
         }
       }
+
       if (e.y > H+50) state.entities.splice(i,1);
     }
-    // ---- Anti "đi giữa 2 cột" exploit ----
+
+    // Anti "đi giữa 2 cột" — bản snap-check chuẩn
     if (state.grace <= 0) {
-      const frac = state.lane - Math.floor(state.lane);    // phần thập phân vị trí làn
-      // chỉ kích hoạt khi thật sự đứng giữa 2 làn (ví dụ giữa làn 1 và 2)
-      if (frac > 0.35 && frac < 0.65) {
-        const laneLeft = Math.floor(state.lane);
-        const laneRight = laneLeft + 1;
-        const pxMid = laneX(state.lane), py = state.playerY;
-    
-        let blockL = false, blockR = false;
-        // tìm xem ở cùng dải Y có vật cản ở cả 2 làn kề nhau không
-        for (let i = state.entities.length - 1; i >= 0; i--) {
-          const e = state.entities[i];
-          if (e.type !== 'ob') continue;
-          const dy = Math.abs(e.y - py);
-          if (dy < 34) {                 // dải chồng theo trục dọc tương đương hitbox hiện tại
-            if (e.lane === laneLeft)  blockL = true;
-            if (e.lane === laneRight) blockR = true;
-            if (blockL && blockR) break;
+      const frac = state.lane - Math.floor(state.lane);
+      if (frac > 0.44 && frac < 0.56) {
+        const L = Math.floor(state.lane);
+        const R = L + 1;
+        if (L >= 0 && R <= CONFIG.GAME.lanes - 1) {
+          const py2 = state.playerY;
+          const hitL = wouldCollideIfSnapped(L, py2);
+          const hitR = wouldCollideIfSnapped(R, py2);
+          if (hitL && hitR) {
+            if (state.score > state.best) {
+              state.best = Math.floor(state.score);
+              localStorage.setItem('hrfz_best', state.best);
+            }
+            const pxMid = laneX(state.lane);
+            boom(); spawnParticles(pxMid, py2, '#e11d48', 22, 1.6);
+            AudioKit.sfx('hit'); vibrate([50,40,80]);
+            return gameOver();
           }
-        }
-        // nếu cả hai làn đều bị chặn ở cùng dải Y → va chạm dù đang ở giữa
-        if (blockL && blockR) {
-          if (state.score > state.best) {
-            state.best = Math.floor(state.score);
-            localStorage.setItem('hrfz_best', state.best);
-          }
-          boom(); spawnParticles(pxMid, py, '#e11d48', 22, 1.6);
-          AudioKit.sfx('hit'); vibrate([50,40,80]);
-          return gameOver();
         }
       }
     }
-    // ---- end anti-exploit ----
 
     // Particles
     const pf = state.lowSpec ? 0.7 : 1;
@@ -574,7 +586,6 @@
 
   function trySpawn(){
     if (state.entities.length >= CONFIG.PERF.maxEntities) return;
-    // Không spawn vật cản trong 1000px đầu màn chơi
     const early = (state.score < 80);
     const type = (state.rng() < (early? 0.4: CONFIG.GAME.orbChance)) ? 'orb' : 'ob';
     if (early && type==='ob') return;
@@ -595,7 +606,6 @@
     return Math.round(MARGIN + laneW*(0.5 + lane));
   }
 
-  // Gradient cache
   const GRAD = {};
   function ensureGradients(){
     if (!GRAD.player){
@@ -697,7 +707,6 @@
     $('#overMsg').textContent = (s>0 && diff>0 && diff<=12) ? `Thiếu ${diff} điểm nữa là chạm ${next}!`
       : (s>state.best ? 'Kỷ lục mới! Lần sau vượt 2.500 nhé.' : 'Gần thôi, thêm chút “sượt nhẹ” là qua!');
 
-    // client proof nhẹ để server sanity-check
     const payload = {
       deviceId: getDeviceId(),
       name: String(state.name||'').slice(0,16),
@@ -706,7 +715,6 @@
       ua: navigator.userAgent,
       seed: dailySeed(), playMs: Math.floor(state.playMs), near: state.nearMissCount
     };
-    // thêm chữ ký đơn giản (không thay secret – server mới là nơi xác thực thật)
     payload.clientProof = crypto.subtle ? 'sha256' : '';
     try{
       if (crypto && crypto.subtle){
@@ -770,7 +778,6 @@
   $('#btnTut').addEventListener('click', ()=>$('#tut').hidden=false);
   $('#btnOkTut').addEventListener('click', ()=>{ $('#tut').hidden=true; localStorage.setItem('hrfz_seen_tut','1'); });
 
-  // Tutorial lần đầu
   if (!localStorage.getItem('hrfz_seen_tut')) $('#tut').hidden=false;
 
   const ps = new URLSearchParams(location.search);
@@ -779,7 +786,7 @@
   if ('serviceWorker' in navigator) { addEventListener('load', ()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
   new ResizeObserver(()=>fitCanvas(canvas)).observe($('#wrap'));
 
-  // Pause/Resume khi ẩn tab
+  // Pause/Resume
   let last = now(), acc=0;
   document.addEventListener('visibilitychange', ()=>{
     if (document.hidden){
@@ -811,7 +818,6 @@
     if (!state.running) return;
     const t=now(); let dt=Math.min(34,t-last); last=t; acc+=dt;
 
-    // EMA FPS & adaptive DPR / particles
     const fps = 1000/Math.max(1, dt);
     state.fpsEMA = state.fpsEMA*0.9 + fps*0.1;
     if (state.fpsEMA < 48 && DPR > CONFIG.PERF.minDpr){
@@ -827,24 +833,19 @@
     draw(); requestAnimationFrame(loop);
   }
 
-  /* =============== Poster share (toDataURL / share file) =============== */
+  /* =============== Poster share =============== */
   async function makePoster(onlyPreview){
     const off = document.createElement('canvas'); const s = 720; off.width=s; off.height=1280;
     const c = off.getContext('2d');
-    // BG gradient
     const g = c.createLinearGradient(0,0,0,1280); g.addColorStop(0,'#0a0f1c'); g.addColorStop(1,'#0b1220'); c.fillStyle=g; c.fillRect(0,0,off.width,off.height);
-    // Title
     c.fillStyle='#22d3ee'; c.font='700 44px system-ui,Segoe UI,Roboto'; c.fillText('HyperRush — Freeze', 36, 80);
-    // Score
     c.fillStyle='#e5f0ff'; c.font='700 120px system-ui,Segoe UI,Roboto'; c.fillText(`${Math.floor(state.score)}`, 36, 220);
     c.fillStyle='#93a4c3'; c.font='400 28px system-ui,Segoe UI,Roboto';
     c.fillText(`Best ${state.best} • Stage ${state.stage} • Near-miss ${state.nearMissCount}`, 36, 260);
-    // Mini canvas snapshot
     c.drawImage(canvas, 0,0,canvas.width,canvas.height, 36, 300, 648, 1036);
     const blob = await new Promise(r=>off.toBlob(r,'image/png',0.92));
     const file = new File([blob], 'hyperrush_poster.png', {type:'image/png'});
     if (onlyPreview){
-      // mở tab xem
       const url = URL.createObjectURL(blob);
       open(url, '_blank');
       setTimeout(()=>URL.revokeObjectURL(url), 60000);
@@ -852,16 +853,12 @@
       if (navigator.canShare && navigator.canShare({files:[file]})){
         try{ await navigator.share({files:[file], title:'HyperRush Poster'}); return; }catch(_){}
       }
-      // fallback download
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='hyperrush_poster.png'; a.click();
       setTimeout(()=>URL.revokeObjectURL(a.href), 60000);
     }
   }
 
-  // Khởi động: hiện nút điều khiển touch nếu màn hình hỗ trợ
   $('#touchCtrl').hidden = !('ontouchstart' in window);
-
-  // Bật nhạc nền theo checkbox
   $('#optBgm').addEventListener('change', e=>{ if(e.target.checked) AudioKit.startBgm(); else AudioKit.stopBgm(); }, {passive:true});
 
 })();</script>
