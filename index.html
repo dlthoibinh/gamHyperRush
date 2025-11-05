@@ -151,6 +151,10 @@
       accel: 0.06,
       spawnEvery: 740,
       spawnAccel: 0.986,
+      // === NEW ===
+      minSpawnEvery: 220,       // ms: sàn tần suất spawn
+      maxSpawnsPerFrame: 6,     // chặn vòng lặp spawn vô hạn / frame
+      // -------------
       orbChance: 0.22,
       freezeRate: 0.28,
       regenPassive: 0.003,
@@ -164,6 +168,7 @@
       surgeMs: 3000,
       graceMs: 1500
     }
+
   };
   const LOW = (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=4);
   if (LOW){ CONFIG.PERF.dprMax=1.2; CONFIG.PERF.maxParticles=120; }
@@ -204,12 +209,15 @@
   }
 
   /* ====== Spawn lookup table (giảm tính mũ mỗi frame) ====== */
-  const SPAWN_TABLE = (function(){
-    const arr = new Float32Array(4096);
-    arr[0] = CONFIG.GAME.spawnEvery;
-    for(let i=1;i<arr.length;i++) arr[i] = arr[i-1] * CONFIG.GAME.spawnAccel;
-    return arr;
-  })();
+  // ====== Spawn lookup table (giảm tính mũ mỗi frame + có sàn) ======
+  const SPAWN_TABLE = (function makeSpawnTable(base, accel, minMs, limit=4096){
+    const out = [];
+    let v = base, i = 0;
+    while (i < limit && v > minMs) { out.push(v); v *= accel; i++; }
+    out.push(minMs);                    // luôn kết thúc ở sàn, không về 0
+    return new Float32Array(out);
+  })(CONFIG.GAME.spawnEvery, CONFIG.GAME.spawnAccel, CONFIG.GAME.minSpawnEvery);
+
 
   /* =============== Audio (sprite + synth + bgm) =============== */
   const AudioKit = (function(){
@@ -465,13 +473,28 @@
     if (state.surgeMs>0) state.surgeMs = Math.max(0, state.surgeMs - dt);
 
     // Spawn
+    // Spawn (an toàn)
     state.lastSpawn += dtEff;
-    const spawnMul = state.surgeMs>0 ? 0.7 : 1; // nhanh hơn khi surge
-    while (state.lastSpawn >= spawnEvery*spawnMul) {
+    const spawnEvery = SPAWN_TABLE[Math.min(SPAWN_TABLE.length-1, state.spawnIdx|0)];
+    const spawnMul   = state.surgeMs>0 ? 0.7 : 1;
+    
+    // Giới hạn số lần spawn / frame để tránh kẹt CPU khi spawnEvery tiệm cận min
+    let spawned = 0;
+    const cap = Math.min(CONFIG.GAME.maxSpawnsPerFrame,
+                         CONFIG.PERF.maxEntities - state.entities.length);
+    
+    while (state.lastSpawn >= spawnEvery*spawnMul && spawned < cap) {
       state.lastSpawn -= spawnEvery*spawnMul;
       const times = 1 + (state.surgeMs>0 ? 1 : 0);
-      for (let k=0;k<times;k++) trySpawn();
+      for (let k=0; k<times; k++) trySpawn();
+      spawned++;
     }
+    
+    // Nếu bị backlog lớn (do cap), cắt bớt để frame tiếp theo không “nổ”
+    if (spawned >= cap && state.lastSpawn > spawnEvery*spawnMul*4) {
+      state.lastSpawn = 0;
+    }
+
 
     // Move + collisions
     const px = laneX(state.lane), py = state.playerY;
