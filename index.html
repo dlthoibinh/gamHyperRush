@@ -7,50 +7,52 @@
   <meta name="robots" content="noindex,nofollow">
   <title>HyperRush — Freeze Edition</title>
   <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <style>
     :root{ --brand:#0ea5e9; --bg:#0b1220; --card:#0f172a; --text:#e5f0ff; --muted:#93a4c3; --ok:#16a34a; --bad:#ef4444; }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{margin:0;background:linear-gradient(180deg,#0b1220,#0b1326 60%,#0b1220);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;outline:0}
     #wrap{max-width:480px;margin:0 auto;position:relative;height:100vh;overflow:hidden}
-    #game{display:block;width:100%;height:100%;background:radial-gradient(ellipse at 50% -10%,rgba(14,165,233,.25),transparent 55%), linear-gradient(180deg, #0a0f1c, #0b1220)}
+    #game{display:block;width:100%;height:100%;background:radial-gradient(ellipse at 50% -10%,rgba(14,165,233,.25),transparent 55%), linear-gradient(180deg,#0a0f1c,#0b1220)}
     .ui{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px}
     .card{background:rgba(15,23,42,.82);backdrop-filter:blur(8px);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:18px 16px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(14,165,233,.08)}
     h1{font-size:22px;margin:0 0 4px;letter-spacing:.2px}
     p{margin:4px 0 10px;color:var(--muted);font-size:14px}
-    .row{display:flex;gap:10px;margin-top:10px}
+    .row{display:flex;gap:10px;margin-top:10px;align-items:center}
     button{flex:1;border:0;border-radius:12px;background:var(--brand);color:#fff;font-weight:700;padding:12px 14px;font-size:16px;box-shadow:0 10px 30px rgba(14,165,233,.25);cursor:pointer}
     button:active{transform:translateY(1px)}
     input[type="text"]{flex:1;background:#0b1220;border:1px solid rgba(148,163,184,.2);border-radius:12px;color:#fff;padding:10px 12px;outline:none}
+    label.switch{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
     .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.4);z-index:40}
     .pill{background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.15);padding:8px 12px;border-radius:999px}
     .hint{font-size:12px;color:var(--muted)}
     .small{font-size:12px}
     .center{text-align:center}
     .mt8{margin-top:8px}
+    .row-small{display:flex;gap:8px;margin-top:8px}
 
-    /* Gauge – cố định */
     #gauge{position:absolute;right:8px;top:46px;width:64px;height:64px;border-radius:999px;background:rgba(2,6,23,.45);border:1px solid rgba(148,163,184,.15);display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none}
     #gcv{width:56px;height:56px;display:block}
-
     #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:6px 10px;background:rgba(250,250,250,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;opacity:0;transition:opacity .18s, transform .18s;z-index:45}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
-
     [hidden]{display:none !important;}
-    .ui[hidden]{display:none !important;}
 
     #game{ touch-action:none; }
     html,body,#wrap{ overscroll-behavior:none; }
 
-    .touch-ctrl{
-      position:absolute;left:0;right:0;bottom:18px;
-      display:flex;justify-content:space-between;padding:0 18px;pointer-events:none;z-index:35
-    }
-    .touch-ctrl button{
-      width:64px;height:64px;border-radius:999px;border:0;
-      background:rgba(2,6,23,.35);color:#fff;font-size:22px;
-      border:1px solid rgba(148,163,184,.18);box-shadow:0 10px 20px rgba(0,0,0,.2);
-      pointer-events:auto
+    .touch-ctrl{ position:absolute;left:0;right:0;bottom:18px; display:flex;justify-content:space-between;padding:0 18px;pointer-events:none;z-index:35 }
+    .touch-ctrl button{ width:64px;height:64px;border-radius:999px;border:0;background:rgba(2,6,23,.35);color:#fff;font-size:22px;border:1px solid rgba(148,163,184,.18);box-shadow:0 10px 20px rgba(0,0,0,.2); pointer-events:auto }
+
+    /* Tutorial overlay */
+    #tut{position:absolute;inset:0;background:rgba(2,6,23,.7);display:flex;align-items:center;justify-content:center;z-index:60}
+    #tut .card{max-width:460px}
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce){
+      #toast{transition:none}
     }
   </style>
 </head>
@@ -66,36 +68,67 @@
           <input id="name" type="text" maxlength="16" placeholder="Tên hiển thị (tuỳ chọn)">
           <button id="btnPlay">Chơi ngay</button>
         </div>
-        <p class="hint">PC: A/D hoặc ← → (nhảy 1 làn); giữ Space để freeze.</p>
-        <div class="small">Bản đồ mỗi ngày thay đổi (daily seed). Thử vượt 2.500!</div>
+        <div class="row-small">
+          <label class="switch"><input id="optTilt" type="checkbox"> Nghiêng máy để lái</label>
+          <label class="switch"><input id="optBgm" type="checkbox"> Nhạc nền</label>
+        </div>
+        <p class="hint">PC: A/D hoặc ← →; Space = Freeze • Mobile: vuốt liên tục, chạm trái/phải để đổi làn nhanh.</p>
+        <div class="small">Bản đồ thay đổi mỗi ngày. Cố gắng vượt 2.500!</div>
+        <div class="row-small">
+          <button id="btnTop">Top 10 ngày</button>
+          <button id="btnTut">Hướng dẫn</button>
+        </div>
       </div>
     </div>
 
     <div id="uiHUD" class="hud" hidden>
       <div class="pill">Điểm: <span id="score">0</span></div>
       <div class="pill">Best: <span id="best">0</span></div>
+      <div class="pill small" id="stageLabel">Stage 1</div>
     </div>
 
     <div id="uiOver" class="ui" hidden role="dialog" aria-modal="true">
       <div class="card center">
         <h1>Thua rồi!</h1>
         <p>Điểm: <b id="finalScore">0</b> • Best: <b id="best2">0</b></p>
-        <div class="row">
+        <div id="overMsg" class="hint mt8"></div>
+        <div class="row mt8">
           <button id="btnRetry">Chơi lại</button>
           <button id="btnShare">Chia sẻ</button>
         </div>
-        <div id="overMsg" class="hint mt8"></div>
+        <div class="row mt8">
+          <button id="btnPoster">Tạo ảnh Poster</button>
+          <button id="btnSave">Tải Poster</button>
+        </div>
       </div>
     </div>
 
-    <div id="gauge" aria-label="Freeze energy">
-      <canvas id="gcv" width="96" height="96"></canvas>
+    <div id="tut" hidden>
+      <div class="card">
+        <h1>Hướng dẫn nhanh (5s)</h1>
+        <p>• Giữ tay để <b>làm chậm</b> thời gian (Freeze).<br>
+           • Vuốt <b>mượt</b> đổi làn — không nhảy bậc. <br>
+           • Sượt chướng ngại <b>gần</b> sẽ được cộng năng lượng & combo. <br>
+           • Orb xanh tăng điểm + năng lượng. <br>
+           • Mỗi 300 điểm có <b>Stage</b> mới, cửa hẹp 3s.</p>
+        <div class="row"><button id="btnOkTut">Hiểu rồi</button></div>
+      </div>
     </div>
+
+    <div id="gauge" aria-label="Freeze energy"><canvas id="gcv" width="96" height="96"></canvas></div>
     <div id="toast">NEAR-MISS +6%</div>
 
     <div id="touchCtrl" class="touch-ctrl" hidden>
       <button id="btnL">◀</button>
       <button id="btnR">▶</button>
+    </div>
+
+    <div id="topPanel" class="ui" hidden>
+      <div class="card">
+        <h1>Bảng xếp hạng ngày</h1>
+        <div id="topList" class="small">Đang tải…</div>
+        <div class="row mt8"><button id="btnCloseTop">Đóng</button></div>
+      </div>
     </div>
   </div>
 
@@ -106,8 +139,12 @@
   /* =============== Config =============== */
   const CONFIG = {
     API_URL: 'https://script.google.com/macros/s/AKfycbznfw8rrffCKv0OObRRc8j6YHKir6dEwpLrG4eNn-Azc3xvg4_UrI3fbUoBRv6Dq-e1DQ/exec',
-    AUDIO: { enabled: true, volume: 0.32 },
-    PERF:  { dprMax: 1.5, maxEntities: 120, maxParticles: 180 },
+    AUDIO: {
+      enabled: true, volume: 0.32,
+      sfxUrl: '',        // e.g. './sfx.wav' (sprite); để trống = dùng synth
+      bgmUrl: ''         // e.g. './bgm.opus' (loop 38s); để trống = không phát
+    },
+    PERF:  { dprMax: 1.5, maxEntities: 120, maxParticles: 180, minDpr: 0.85 },
     GAME: {
       lanes: 3,
       baseSpeed: 135,
@@ -120,12 +157,12 @@
       regenNear: 6,
       regenOrb: 10,
       freezeSlow: 0.25,
-      laneSmoothingMs: 95,   // <<< mượt theo tay (analog)
       minGapObPx: 148,
       minGapOrbPx: 118,
       maxSpawnAttempts: 3,
       surgeEvery: 300,
-      surgeMs: 3000
+      surgeMs: 3000,
+      graceMs: 1500
     }
   };
   const LOW = (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=4);
@@ -135,7 +172,9 @@
   const $ = sel => document.querySelector(sel);
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const now = ()=>performance.now();
-  function vibrate(p){try{navigator.vibrate && navigator.vibrate(p);}catch(_){}} 
+  const mqlReduce = matchMedia('(prefers-reduced-motion: reduce)');
+
+  function vibrate(p){ try{ if(!mqlReduce.matches) navigator.vibrate && navigator.vibrate(p);}catch(_){ } }
 
   function getDeviceId(){
     const k='hrfz_device_id'; let id=localStorage.getItem(k);
@@ -145,30 +184,58 @@
   function mulberry32(a){ return function(){ var t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
 
   const BASE_W = 360, BASE_H = 640, MARGIN=40;
+  let DPR = 1;
+
   function fitCanvas(canvas){
     const parent=canvas.parentElement; const ratio=BASE_W/BASE_H;
     const w=parent.clientWidth, h=parent.clientHeight; let cw=w, ch=w/ratio;
     if (ch>h) { ch=h; cw=h*ratio; }
     canvas.style.width=cw+'px'; canvas.style.height=ch+'px';
-    const dpr = Math.min(CONFIG.PERF.dprMax, window.devicePixelRatio||1);
-    canvas.width = Math.round(BASE_W*dpr);
-    canvas.height = Math.round(BASE_H*dpr);
-    const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    const dprTarget = clamp((window.devicePixelRatio||1), CONFIG.PERF.minDpr, CONFIG.PERF.dprMax);
+    DPR = dprTarget;
+    canvas.width = Math.round(BASE_W*DPR);
+    canvas.height = Math.round(BASE_H*DPR);
+    const ctx = canvas.getContext('2d'); ctx.setTransform(DPR,0,0,DPR,0,0);
   }
+
   function dailySeed(){
     const d = new Date(); const s = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())>>>0;
     return s ^ (getDeviceId().split('-')[0]>>>0);
   }
 
-  /* =============== WebAudio SFX =============== */
+  /* ====== Spawn lookup table (giảm tính mũ mỗi frame) ====== */
+  const SPAWN_TABLE = (function(){
+    const arr = new Float32Array(4096);
+    arr[0] = CONFIG.GAME.spawnEvery;
+    for(let i=1;i<arr.length;i++) arr[i] = arr[i-1] * CONFIG.GAME.spawnAccel;
+    return arr;
+  })();
+
+  /* =============== Audio (sprite + synth + bgm) =============== */
   const AudioKit = (function(){
-    let ctx, master;
+    let ctx, master, sfxBuf=null, bgm=null, bgmGain=null;
     function ensure(){
       if (!CONFIG.AUDIO.enabled) return null;
       if (!ctx){ ctx = new (window.AudioContext||window.webkitAudioContext)(); master = ctx.createGain(); master.gain.value = CONFIG.AUDIO.volume; master.connect(ctx.destination); }
       return ctx;
     }
+    async function load(url){
+      const c=ensure(); if(!c || !url) return null;
+      try{ const r=await fetch(url); const a=await r.arrayBuffer(); return await c.decodeAudioData(a);}catch(_){ return null; }
+    }
+    async function prepare(){
+      if (!ensure()) return;
+      if (CONFIG.AUDIO.sfxUrl && !sfxBuf) sfxBuf = await load(CONFIG.AUDIO.sfxUrl);
+    }
     function unlock(){ const c=ensure(); if (!c) return; if (c.state==='suspended') c.resume().catch(()=>{}); }
+    function playBuf(buf, time=0, offset=0, dur){
+      if (!buf) return;
+      const c=ensure(); const src=c.createBufferSource(); src.buffer=buf; src.connect(master);
+      if (dur) src.start(c.currentTime + time, offset, dur); else src.start(c.currentTime + time, offset);
+    }
+    // simple sprite map (tự điều chỉnh offset nếu anh làm file riêng)
+    const SPR = { move:[0.00,0.08], near:[0.10,0.10], orb:[0.22,0.16], freeze_on:[0.40,0.12], hit:[0.56,0.22], taunt:[0.80,0.20] };
+
     function tone(opt){
       const c=ensure(); if(!c) return;
       const o=c.createOscillator(), g=c.createGain();
@@ -187,6 +254,8 @@
       src.start(t); src.stop(t+a+r+0.01);
     }
     function sfx(name){
+      if (sfxBuf && SPR[name]){ const [off,dur]=SPR[name]; return playBuf(sfxBuf,0,off,dur); }
+      // Fallback synth
       switch(name){
         case 'move': tone({type:'square',freq:640,gain:0.18,decay:0.06,release:0.06}); break;
         case 'near': tone({type:'triangle',freq:880,gain:0.22,decay:0.04}); break;
@@ -196,38 +265,51 @@
         case 'taunt': tone({type:'triangle',freq:480,gain:0.16,decay:0.12}); break;
       }
     }
-    return {unlock,sfx};
+    async function startBgm(){
+      if (!CONFIG.AUDIO.bgmUrl) return;
+      const c=ensure(); if(!c) return;
+      if (!bgm){ const buf = await load(CONFIG.AUDIO.bgmUrl); if(!buf) return;
+        const src=c.createBufferSource(); src.buffer=buf; src.loop=true;
+        bgmGain=c.createGain(); bgmGain.gain.value=0; src.connect(bgmGain); bgmGain.connect(master);
+        src.start();
+        bgm = src;
+        const t=c.currentTime; bgmGain.gain.linearRampToValueAtTime(0.25, t+1.2);
+      }
+    }
+    function stopBgm(){ if(bgmGain){ const c=ensure(); const t=c.currentTime; bgmGain.gain.linearRampToValueAtTime(0, t+0.6); } }
+    return {unlock,prepare,sfx,startBgm,stopBgm};
   })();
 
-  /* =============== Backend (optional) =============== */
-  async function postScore(name, score) {
+  /* =============== Backend (POST + optional TOP) =============== */
+  async function postScore(payload) {
     if (!CONFIG.API_URL) return;
     try {
-      const body = JSON.stringify({
-        deviceId: getDeviceId(),
-        name: String(name||'').slice(0,16),
-        score: Math.max(0, Math.floor(score)),
-        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-        ua: navigator.userAgent
-      });
-      await fetch(CONFIG.API_URL, { method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'}, body,
-        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined }).catch(()=>{});
+      await fetch(CONFIG.API_URL, {
+        method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined
+      }).catch(()=>{});
     } catch (_){}
+  }
+  async function fetchTop(){
+    if (!CONFIG.API_URL) throw 'No API';
+    const url = CONFIG.API_URL + '?top=10';
+    const r = await fetch(url, {mode:'cors', signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined});
+    return await r.json();
   }
 
   /* =============== Game State =============== */
-  const canvas = $('#game'); const ctx = canvas.getContext('2d'); fitCanvas(canvas); window.addEventListener('resize', ()=>fitCanvas(canvas));
+  const canvas = $('#game'); const ctx = canvas.getContext('2d'); fitCanvas(canvas); addEventListener('resize', ()=>fitCanvas(canvas));
   const gcv = $('#gcv'); const gctx = gcv.getContext('2d');
 
   let W=BASE_W, H=BASE_H;
   const state = {
-    running:false, over:false,
+    running:false, over:false, startedAt:0, playMs:0,
     name:'', score:0, best:Number(localStorage.getItem('hrfz_best')||0),
     rng: mulberry32(dailySeed()),
     speed: CONFIG.GAME.baseSpeed,
-    lastSpawn: 0, spawnEvery: CONFIG.GAME.spawnEvery,
-    lane: 1.0,              // vị trí hiện tại (liên tục)
-    desiredLane: 1.0,       // mục tiêu (kéo theo tay)
+    lastSpawn: 0, spawnIdx: 0,
+    lane: 1.0, desiredLane: 1.0, laneV:0,
     playerY: H-120,
     entities: [],
     energy: 60,
@@ -236,7 +318,12 @@
     shake: 0,
     particles: [],
     surgeMs: 0, nextSurge: CONFIG.GAME.surgeEvery,
-    dragging:false, dragStartX:0, dragStartLane:1.0, hasDragged:false
+    dragging:false, dragStartX:0, dragStartLane:1.0, hasDragged:false, dragStartT:0,
+    combo:0, comboT:0,
+    grace: CONFIG.GAME.graceMs,
+    stage:1, lastStageAnnounce:0,
+    nearMissCount:0,
+    lowSpec:false, fpsEMA:60
   };
 
   /* =============== Particles =============== */
@@ -256,39 +343,48 @@
     if (next!==Math.round(state.desiredLane)){ state.desiredLane = next; AudioKit.sfx('move'); }
   }
 
-  // Phím
-  window.addEventListener('keydown', (e)=>{
+  // Keyboard
+  addEventListener('keydown', (e)=>{
     const k = e.key.toLowerCase();
     if (k==='arrowleft'||k==='a') stepLane(-1);
     if (k==='arrowright'||k==='d') stepLane(1);
     if (k===' ') { state.holding = true; AudioKit.sfx('freeze_on'); }
   }, {passive:true});
-  window.addEventListener('keyup', (e)=>{ if (e.key===' ') state.holding=false; }, {passive:true});
+  addEventListener('keyup', (e)=>{ if (e.key===' ') state.holding=false; }, {passive:true});
 
-  // Pointer – analog drag
-  canvas.addEventListener('pointerdown', (e)=>{
+  // Pointer – analog drag (anti-bounce)
+  const TAP_TIME_MAX = 160; // ms
+  const DRAG_PX_THRESHOLD = 10 * (window.devicePixelRatio || 1);
+
+  canvas.addEventListener('pointerdown', async (e)=>{
     if (state.dragging) return;
-    state.dragging=true; state.dragStartX=e.clientX; state.dragStartLane=state.desiredLane; state.hasDragged=false;
-    canvas.setPointerCapture(e.pointerId); state.holding=true; AudioKit.unlock(); AudioKit.sfx('freeze_on');
+    state.dragging = true;
+    state.dragStartX = e.clientX;
+    state.dragStartLane = state.desiredLane;
+    state.dragStartT = now();
+    state.hasDragged = false;
+    canvas.setPointerCapture?.(e.pointerId);
+    state.holding = true; await AudioKit.prepare(); AudioKit.unlock(); AudioKit.sfx('freeze_on');
     e.preventDefault();
   }, {passive:false});
 
   canvas.addEventListener('pointermove', (e)=>{
     if (!state.dragging) return;
     const dx = e.clientX - state.dragStartX;
+    if (Math.abs(dx) > DRAG_PX_THRESHOLD) state.hasDragged = true;
     const laneW = (W - MARGIN*2)/CONFIG.GAME.lanes;
     const cont = state.dragStartLane + dx / laneW;        // liên tục theo tay
     state.desiredLane = clamp(cont, 0, CONFIG.GAME.lanes-1);
-    if (Math.abs(dx)>6) state.hasDragged=true;
     e.preventDefault();
   }, {passive:false});
 
   function endPointer(e){
     if (!state.dragging) return;
-    try{ canvas.releasePointerCapture(e.pointerId); }catch(_){}
-    // Nếu không kéo, xem như tap trái/phải
-    if (!state.hasDragged){
-      const r=canvas.getBoundingClientRect();
+    try { canvas.releasePointerCapture?.(e.pointerId); }catch(_){}
+    const dtTap = now() - (state.dragStartT || 0);
+    const dx = Math.abs((e.clientX||0) - (state.dragStartX||0));
+    if (!state.hasDragged && dtTap <= TAP_TIME_MAX && dx < DRAG_PX_THRESHOLD){
+      const r = canvas.getBoundingClientRect();
       stepLane(e.clientX < r.left + r.width/2 ? -1 : 1);
     }
     state.dragging=false; state.holding=false;
@@ -296,27 +392,73 @@
   }
   canvas.addEventListener('pointerup', endPointer, {passive:false});
   canvas.addEventListener('pointercancel', endPointer, {passive:false});
-  document.addEventListener('visibilitychange', ()=>{ if (document.hidden) state.holding=false; }, {passive:true});
+  canvas.addEventListener('pointerleave', endPointer, {passive:false});
 
-  /* =============== Loop =============== */
+  // Tilt control (optional)
+  $('#optTilt').addEventListener('change', async (e)=>{
+    if (e.target.checked){
+      try{
+        if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission){
+          const perm = await DeviceMotionEvent.requestPermission(); if (perm !== 'granted') e.target.checked=false;
+        }
+      }catch(_){}
+    }
+  }, {passive:true});
+
+  addEventListener('devicemotion', (ev)=>{
+    if (!$('#optTilt').checked || !state.running) return;
+    const ax = ev.accelerationIncludingGravity ? ev.accelerationIncludingGravity.x || 0 : 0;
+    const tilt = clamp(ax/6, -1, 1); // [-1,1]
+    state.desiredLane = clamp(1 + tilt, 0, CONFIG.GAME.lanes-1);
+  }, {passive:true});
+
+  /* =============== Loop helpers =============== */
+  function smoothLane(dt){
+    const k = 28, c = 2 * Math.sqrt(k);
+    const x = state.lane - state.desiredLane;
+    const a = -k*x - c*state.laneV;
+    const dtSec = dt / 1000;
+    state.laneV += a * dtSec;
+    state.lane  += state.laneV * dtSec;
+    state.lane = clamp(state.lane, 0, CONFIG.GAME.lanes-1);
+  }
+
+  function applyStages(){
+    const s = Math.floor(state.score / CONFIG.GAME.surgeEvery) + 1;
+    if (s !== state.stage){
+      state.stage = s;
+      $('#stageLabel').textContent = `Stage ${state.stage}`;
+      // tăng độ khó nhẹ nhàng từng stage
+      CONFIG.GAME.orbChance = clamp(0.22 - 0.01*(state.stage-1), 0.12, 0.22);
+      CONFIG.GAME.minGapObPx = clamp(148 - 4*(state.stage-1), 120, 148);
+      if (now()-state.lastStageAnnounce>2000){ toast(`Stage ${state.stage}!`); AudioKit.sfx('taunt'); }
+      state.lastStageAnnounce = now();
+    }
+  }
+
+  /* =============== Update =============== */
   function update(dt) {
     const timeScale = state.holding && state.energy>0 ? CONFIG.GAME.freezeSlow : 1;
     const dtEff = dt * timeScale;
 
-    // energy
+    // Grace đầu game
+    if (state.grace>0) state.grace = Math.max(0, state.grace - dt);
+
+    // Energy
     state.energy = state.holding && state.energy>0
       ? Math.max(0, state.energy - CONFIG.GAME.freezeRate * (dt/10))
       : Math.min(100, state.energy + CONFIG.GAME.regenPassive * (dt/10));
 
-    // difficulty & score
+    // Difficulty & score
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
-    state.spawnEvery *= Math.pow(CONFIG.GAME.spawnAccel, dtEff/16.6);
+    state.spawnIdx += dtEff/16.6;
+    const spawnEvery = SPAWN_TABLE[Math.min(SPAWN_TABLE.length-1, state.spawnIdx|0)];
     state.score += dtEff * 0.06 * ( (state.lastNearT && (now()-state.lastNearT<1200)) ? 1.15 : 1 );
     $('#score').textContent = String(Math.floor(state.score));
 
-    // lane smoothing (theo tay — không nhảy)
-    const t = Math.min(1, dtEff / CONFIG.GAME.laneSmoothingMs);
-    state.lane += (state.desiredLane - state.lane) * (1 - Math.pow(1 - t, 3)); // easeOutCubic
+    // Lane smoothing
+    smoothLane(dtEff);
+    applyStages();
 
     // Surge
     if (state.score >= state.nextSurge){ state.surgeMs = CONFIG.GAME.surgeMs; state.nextSurge += CONFIG.GAME.surgeEvery; toast('Cửa hẹp 3s!'); AudioKit.sfx('taunt'); }
@@ -324,8 +466,9 @@
 
     // Spawn
     state.lastSpawn += dtEff;
-    while (state.lastSpawn >= state.spawnEvery) {
-      state.lastSpawn -= state.spawnEvery;
+    const spawnMul = state.surgeMs>0 ? 0.7 : 1; // nhanh hơn khi surge
+    while (state.lastSpawn >= spawnEvery*spawnMul) {
+      state.lastSpawn -= spawnEvery*spawnMul;
       const times = 1 + (state.surgeMs>0 ? 1 : 0);
       for (let k=0;k<times;k++) trySpawn();
     }
@@ -339,13 +482,21 @@
       if (e.type==='ob') {
         const dx = Math.abs(laneX(e.lane)-px), dy = Math.abs(e.y - py);
         if (dx < 38 && dy>36 && dy<86 && now()-state.lastNearT>240) {
-          state.energy = Math.min(100, state.energy + CONFIG.GAME.regenNear);
-          toast('NEAR-MISS +' + CONFIG.GAME.regenNear + '%'); state.lastNearT = now();
+          // Near-miss
+          state.nearMissCount++;
+          if (now() - state.comboT < 1200) state.combo++; else state.combo = 1;
+          state.comboT = now();
+          const bonus = CONFIG.GAME.regenNear + Math.min(12, 2 * Math.max(0, state.combo-1));
+          state.energy = Math.min(100, state.energy + bonus);
+          state.score += 4 * state.combo;
+          toast(state.combo>1 ? `NEAR-MISS x${state.combo} +${bonus}%` : `NEAR-MISS +${CONFIG.GAME.regenNear}%`);
+          state.lastNearT = now();
           AudioKit.sfx('near'); vibrate(10);
         }
       }
 
-      if (Math.abs(laneX(e.lane)-px) < 36 && Math.abs(e.y - py) < 36) {
+      // Collision (tắt trong grace 1.5s)
+      if (state.grace<=0 && Math.abs(laneX(e.lane)-px) < 36 && Math.abs(e.y - py) < 36) {
         if (e.type==='orb') {
           state.score += 50; state.energy = Math.min(100, state.energy + CONFIG.GAME.regenOrb);
           state.entities.splice(i,1); flash(120); spawnParticles(px,py,'#38bdf8',12,1.1); AudioKit.sfx('orb'); vibrate(12);
@@ -358,17 +509,22 @@
       if (e.y > H+50) state.entities.splice(i,1);
     }
 
-    // particles
+    // Particles
+    const pf = state.lowSpec ? 0.7 : 1;
     for (let i=state.particles.length-1;i>=0;i--){
       const p=state.particles[i]; p.age += dtEff; if (p.age>p.life){ state.particles.splice(i,1); continue; }
-      p.x += p.vx * dtEff/16.6; p.y += p.vy * dtEff/16.6; p.vy += 0.002*dtEff;
+      p.x += p.vx * dtEff/16.6; p.y += p.vy * dtEff/16.6; p.vy += 0.002*dtEff*pf;
     }
-    state.shake *= 0.92;
+    state.shake *= mqlReduce.matches ? 0.9 : 0.92;
   }
 
   function trySpawn(){
     if (state.entities.length >= CONFIG.PERF.maxEntities) return;
-    const type = (state.rng() < CONFIG.GAME.orbChance) ? 'orb' : 'ob';
+    // Không spawn vật cản trong 1000px đầu màn chơi
+    const early = (state.score < 80);
+    const type = (state.rng() < (early? 0.4: CONFIG.GAME.orbChance)) ? 'orb' : 'ob';
+    if (early && type==='ob') return;
+
     let lane = Math.floor(state.rng()*CONFIG.GAME.lanes), tries=0;
     do {
       let lastY = null;
@@ -384,6 +540,18 @@
     const roadW=W - MARGIN*2; const laneW = roadW/CONFIG.GAME.lanes;
     return Math.round(MARGIN + laneW*(0.5 + lane));
   }
+
+  // Gradient cache
+  const GRAD = {};
+  function ensureGradients(){
+    if (!GRAD.player){
+      GRAD.player = ctx.createLinearGradient(-16,-16,16,16);
+      GRAD.player.addColorStop(0,'#22d3ee'); GRAD.player.addColorStop(1,'#0ea5e9');
+      GRAD.ob = ctx.createLinearGradient(0,-18,0,18);
+      GRAD.ob.addColorStop(0,'#c64040'); GRAD.ob.addColorStop(1,'#9f2c2c');
+    }
+  }
+
   function drawRoad(){
     const roadW=W - MARGIN*2;
     ctx.save();
@@ -395,21 +563,28 @@
     for (let y=-offset; y<H; y+=40){ ctx.beginPath(); ctx.moveTo(MARGIN+8,y); ctx.lineTo(W-MARGIN-8,y); ctx.stroke(); }
     ctx.restore();
   }
+  function roundRect(x,y,w,h,r,fill,stroke){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    if (fill) ctx.fill(); if (stroke) ctx.stroke();
+  }
   function drawPlayer(x,y){
     ctx.save(); ctx.translate(x,y);
-    ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0,18,20,8,0,0,Math.PI*2); ctx.fill();
-    const grd = ctx.createLinearGradient(-16,-16,16,16);
-    grd.addColorStop(0,'#22d3ee'); grd.addColorStop(1,'#0ea5e9');
-    ctx.fillStyle=grd; roundRect(-16,-16,32,32,8,true,false);
+    if (!mqlReduce.matches){ ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0,18,20,8,0,0,Math.PI*2); ctx.fill(); }
+    ensureGradients();
+    ctx.fillStyle=GRAD.player; roundRect(-16,-16,32,32,8,true,false);
     ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(0,-8); ctx.lineTo(8,0); ctx.lineTo(0,8); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
   function drawObstacle(x,y){
     ctx.save(); ctx.translate(x,y);
-    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,16,16,6,0,0,Math.PI*2); ctx.fill();
-    const grd = ctx.createLinearGradient(0,-18,0,18);
-    grd.addColorStop(0,'#c64040');  grd.addColorStop(1,'#9f2c2c');
-    ctx.fillStyle = grd; roundRect(-18,-18,36,36,8,true,false);
+    if (!mqlReduce.matches){ ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,16,16,6,0,0,Math.PI*2); ctx.fill(); }
+    ensureGradients();
+    ctx.fillStyle = GRAD.ob; roundRect(-18,-18,36,36,8,true,false);
     ctx.strokeStyle='rgba(0,0,0,.40)'; ctx.lineWidth=1.5; roundRect(-18,-18,36,36,8,false,true);
     ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-14,-12); ctx.lineTo(14,-12); ctx.stroke();
     ctx.restore();
@@ -423,20 +598,11 @@
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-  function roundRect(x,y,w,h,r,fill,stroke){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y,x+w,y+h,r);
-    ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r);
-    ctx.arcTo(x,y,x+w,y,r);
-    if (fill) ctx.fill(); if (stroke) ctx.stroke();
-  }
 
   /* =============== FX / Gauge / Toast =============== */
   let flashT=0, boomT=0;
-  function flash(ms){ flashT=now()+ms; }
-  function boom(){ boomT=now()+250; state.shake = 10; }
+  function flash(ms){ if (!mqlReduce.matches){ flashT=now()+ms; } }
+  function boom(){ boomT=now()+250; state.shake = mqlReduce.matches ? 0 : 10; }
   const origFill = ctx.fillStyle;
   const _draw = draw; draw = function(){ _draw(); postFX(); };
   function postFX(){
@@ -444,12 +610,17 @@
     if (flashT>t){ ctx.fillStyle='rgba(255,255,255,.2)'; ctx.fillRect(0,0,W,H); ctx.fillStyle=origFill; }
     if (boomT>t){ const k=(boomT-t)/250; ctx.save(); ctx.translate(W/2,H/2); ctx.rotate((1-k)*0.4); ctx.scale(1+(1-k)*0.05,1+(1-k)*0.05); ctx.restore(); }
   }
+
+  let lastGaugePct = -1;
   function drawGauge(){
-    const pct = clamp(state.energy,0,100)/100;
+    const pct = Math.floor(clamp(state.energy,0,100));
+    if (pct === lastGaugePct) return;
+    lastGaugePct = pct;
+
     const c=gctx; const w=gcv.width, h=gcv.height; c.clearRect(0,0,w,h);
     c.save(); c.translate(w/2,h/2);
     c.strokeStyle='rgba(148,163,184,.22)'; c.lineWidth=10; c.beginPath(); c.arc(0,0,26,0,Math.PI*2); c.stroke();
-    const end = -Math.PI/2 + pct*2*Math.PI;
+    const end = -Math.PI/2 + (pct/100)*2*Math.PI;
     const grad = c.createLinearGradient(-30,-30,30,30); grad.addColorStop(0,'#22d3ee'); grad.addColorStop(1,'#0ea5e9');
     c.strokeStyle = grad; c.lineWidth=10; c.lineCap='round'; c.beginPath(); c.arc(0,0,26,-Math.PI/2, end); c.stroke();
     c.fillStyle='rgba(255,255,255,.9)'; c.beginPath(); c.moveTo(-5,0); c.lineTo(0,-5); c.lineTo(5,0); c.lineTo(0,5); c.closePath(); c.fill();
@@ -460,9 +631,10 @@
     clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),760);
   }
 
-  /* =============== UI =============== */
+  /* =============== UI & Poster =============== */
   function gameOver(){
     state.running=false; state.over=true;
+    state.playMs += (now()-state.startedAt);
     $('#uiHUD').hidden=true; $('#uiOver').hidden=false; $('#touchCtrl').hidden=true;
     $('#finalScore').textContent = Math.floor(state.score);
     $('#best2').textContent = state.best;
@@ -470,42 +642,109 @@
     const next = Math.ceil(s/100)*100; const diff = next - s;
     $('#overMsg').textContent = (s>0 && diff>0 && diff<=12) ? `Thiếu ${diff} điểm nữa là chạm ${next}!`
       : (s>state.best ? 'Kỷ lục mới! Lần sau vượt 2.500 nhé.' : 'Gần thôi, thêm chút “sượt nhẹ” là qua!');
-    postScore(state.name, state.score);
+
+    // client proof nhẹ để server sanity-check
+    const payload = {
+      deviceId: getDeviceId(),
+      name: String(state.name||'').slice(0,16),
+      score: Math.max(0, Math.floor(state.score)),
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      ua: navigator.userAgent,
+      seed: dailySeed(), playMs: Math.floor(state.playMs), near: state.nearMissCount
+    };
+    // thêm chữ ký đơn giản (không thay secret – server mới là nơi xác thực thật)
+    payload.clientProof = crypto.subtle ? 'sha256' : '';
+    try{
+      if (crypto && crypto.subtle){
+        const enc = new TextEncoder().encode(payload.deviceId+'|'+payload.score+'|'+payload.seed+'|'+payload.playMs+'|'+payload.near);
+        crypto.subtle.digest('SHA-256', enc).then(buf=>{
+          payload.clientProof = Array.from(new Uint8Array(buf)).map(x=>x.toString(16).padStart(2,'0')).join('');
+          postScore(payload);
+        }).catch(()=>postScore(payload));
+      }else postScore(payload);
+    }catch(_){ postScore(payload); }
   }
+
   function resetGame(){
-    state.running=true; state.over=false;
+    state.running=true; state.over=false; state.startedAt = now(); state.playMs=0;
     state.score=0; state.speed=CONFIG.GAME.baseSpeed;
-    state.lastSpawn=0; state.spawnEvery=CONFIG.GAME.spawnEvery;
-    state.lane=1.0; state.desiredLane=1.0;
+    state.lastSpawn=0; state.spawnIdx=0;
+    state.lane=1.0; state.desiredLane=1.0; state.laneV=0;
     state.entities.length=0; state.particles.length=0;
     state.energy = 60; state.shake = 0; state.surgeMs=0; state.nextSurge=CONFIG.GAME.surgeEvery;
+    state.combo=0; state.comboT=0; state.nearMissCount=0;
+    state.grace = CONFIG.GAME.graceMs; state.stage=1; $('#stageLabel').textContent='Stage 1';
     $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true; $('#touchCtrl').hidden=false;
     $('#score').textContent='0'; $('#best').textContent=String(state.best);
+    lastGaugePct = -1; drawGauge();
   }
-  function startFromUI(){ state.name = $('#name').value.trim().slice(0,16); resetGame(); loop(); }
+  function startFromUI(){
+    const name = $('#name').value.trim().slice(0,16);
+    state.name = name; if (name) localStorage.setItem('hrfz_last_name', name);
+    resetGame(); loop();
+    if ($('#optBgm').checked) AudioKit.startBgm(); else AudioKit.stopBgm();
+  }
 
   $('#btnPlay').addEventListener('click', startFromUI);
   $('#btnRetry').addEventListener('click', startFromUI);
   $('#btnShare').addEventListener('click', async ()=>{
     const text=`Tôi đạt ${Math.floor(state.score)} điểm ở #HyperRushFreeze — bạn dám vượt không?`;
-    try{ if (navigator.share) await navigator.share({title:'HyperRush Freeze', text, url:location.href});
-      else { await navigator.clipboard.writeText(`${text}\n${location.href}`); alert('Đã copy liên kết!'); } }catch(_){}
+    try{
+      if (navigator.share) await navigator.share({title:'HyperRush Freeze', text, url:location.href});
+      else { await navigator.clipboard.writeText(`${text}\n${location.href}`); alert('Đã copy liên kết!'); }
+    }catch(_){}
   });
+  $('#btnPoster').addEventListener('click', ()=>makePoster(true));
+  $('#btnSave').addEventListener('click', ()=>makePoster(false));
   $('#btnL').addEventListener('click', ()=>stepLane(-1));
   $('#btnR').addEventListener('click', ()=>stepLane(1));
   $('#best').textContent = String(state.best);
 
+  const lastName = localStorage.getItem('hrfz_last_name'); if (lastName) $('#name').value = lastName;
+
+  $('#btnTop').addEventListener('click', async ()=>{
+    $('#topPanel').hidden=false; $('#topList').textContent='Đang tải…';
+    try{
+      const data = await fetchTop();
+      $('#topList').innerHTML = data && Array.isArray(data)
+        ? '<ol>' + data.map(x=>`<li>${x.name||'NoName'} — <b>${x.score}</b></li>`).join('') + '</ol>'
+        : 'Không có dữ liệu.';
+    }catch(_){ $('#topList').textContent='Không lấy được dữ liệu.'; }
+  });
+  $('#btnCloseTop').addEventListener('click', ()=>$('#topPanel').hidden=true);
+
+  $('#btnTut').addEventListener('click', ()=>$('#tut').hidden=false);
+  $('#btnOkTut').addEventListener('click', ()=>{ $('#tut').hidden=true; localStorage.setItem('hrfz_seen_tut','1'); });
+
+  // Tutorial lần đầu
+  if (!localStorage.getItem('hrfz_seen_tut')) $('#tut').hidden=false;
+
   const ps = new URLSearchParams(location.search);
   if (ps.get('autoplay')==='1'){ setTimeout(startFromUI, 300); }
 
-  if ('serviceWorker' in navigator) { window.addEventListener('load', ()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+  if ('serviceWorker' in navigator) { addEventListener('load', ()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
   new ResizeObserver(()=>fitCanvas(canvas)).observe($('#wrap'));
 
-  /* =============== Main Loop =============== */
+  // Pause/Resume khi ẩn tab
+  let last = now(), acc=0;
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden){
+      state.holding = false;
+      state._autoResume = state.running;
+      state.running = false;
+    } else if (state._autoResume){
+      state.running = true;
+      state._autoResume = false;
+      last = now();
+      loop();
+    }
+  }, {passive:true});
+
+  /* =============== Main Loop (adaptive FPS & DPR) =============== */
   function draw(){
     ctx.clearRect(0,0,W,H);
     ctx.save();
-    if (state.shake>0){ ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake); }
+    if (state.shake>0 && !mqlReduce.matches){ ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake); }
     drawRoad();
     for (const e of state.entities) (e.type==='ob') ? drawObstacle(laneX(e.lane), e.y) : drawOrb(laneX(e.lane), e.y);
     drawPlayer(laneX(state.lane), state.playerY);
@@ -513,8 +752,63 @@
     ctx.restore();
     drawGauge();
   }
-  let last = now(), acc=0;
-  function loop(){ if (!state.running) return; const t=now(); let dt=Math.min(34,t-last); last=t; acc+=dt; while (acc>=16){ update(16); acc-=16; } draw(); requestAnimationFrame(loop); }
+
+  function loop(){
+    if (!state.running) return;
+    const t=now(); let dt=Math.min(34,t-last); last=t; acc+=dt;
+
+    // EMA FPS & adaptive DPR / particles
+    const fps = 1000/Math.max(1, dt);
+    state.fpsEMA = state.fpsEMA*0.9 + fps*0.1;
+    if (state.fpsEMA < 48 && DPR > CONFIG.PERF.minDpr){
+      DPR = Math.max(CONFIG.PERF.minDpr, DPR - 0.05);
+      fitCanvas(canvas);
+      state.lowSpec = true; CONFIG.PERF.maxParticles = Math.max(60, CONFIG.PERF.maxParticles-10);
+    } else if (state.fpsEMA > 70 && DPR < CONFIG.PERF.dprMax){
+      DPR = Math.min(CONFIG.PERF.dprMax, DPR + 0.05);
+      fitCanvas(canvas);
+    }
+
+    while (acc>=16){ update(16); acc-=16; }
+    draw(); requestAnimationFrame(loop);
+  }
+
+  /* =============== Poster share (toDataURL / share file) =============== */
+  async function makePoster(onlyPreview){
+    const off = document.createElement('canvas'); const s = 720; off.width=s; off.height=1280;
+    const c = off.getContext('2d');
+    // BG gradient
+    const g = c.createLinearGradient(0,0,0,1280); g.addColorStop(0,'#0a0f1c'); g.addColorStop(1,'#0b1220'); c.fillStyle=g; c.fillRect(0,0,off.width,off.height);
+    // Title
+    c.fillStyle='#22d3ee'; c.font='700 44px system-ui,Segoe UI,Roboto'; c.fillText('HyperRush — Freeze', 36, 80);
+    // Score
+    c.fillStyle='#e5f0ff'; c.font='700 120px system-ui,Segoe UI,Roboto'; c.fillText(`${Math.floor(state.score)}`, 36, 220);
+    c.fillStyle='#93a4c3'; c.font='400 28px system-ui,Segoe UI,Roboto';
+    c.fillText(`Best ${state.best} • Stage ${state.stage} • Near-miss ${state.nearMissCount}`, 36, 260);
+    // Mini canvas snapshot
+    c.drawImage(canvas, 0,0,canvas.width,canvas.height, 36, 300, 648, 1036);
+    const blob = await new Promise(r=>off.toBlob(r,'image/png',0.92));
+    const file = new File([blob], 'hyperrush_poster.png', {type:'image/png'});
+    if (onlyPreview){
+      // mở tab xem
+      const url = URL.createObjectURL(blob);
+      open(url, '_blank');
+      setTimeout(()=>URL.revokeObjectURL(url), 60000);
+    } else {
+      if (navigator.canShare && navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file], title:'HyperRush Poster'}); return; }catch(_){}
+      }
+      // fallback download
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='hyperrush_poster.png'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 60000);
+    }
+  }
+
+  // Khởi động: hiện nút điều khiển touch nếu màn hình hỗ trợ
+  $('#touchCtrl').hidden = !('ontouchstart' in window);
+
+  // Bật nhạc nền theo checkbox
+  $('#optBgm').addEventListener('change', e=>{ if(e.target.checked) AudioKit.startBgm(); else AudioKit.stopBgm(); }, {passive:true});
 
 })();</script>
 </body>
