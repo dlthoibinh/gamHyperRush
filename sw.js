@@ -1,5 +1,5 @@
 // HyperRush Freeze SW - v3
-const CACHE_NAME = 'hr-freeze-v3';
+const CACHE_NAME = 'hr-freeze-v4';
 const ASSETS = [
   './',
   './index.html',
