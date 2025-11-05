@@ -112,6 +112,7 @@
     GAME: {
       lanes: 3,
       baseSpeed: 135,
+      laneMoveMs: 110,
       accel: 0.06,
       spawnEvery: 740,
       spawnAccel: 0.986,
@@ -201,10 +202,24 @@
     energy: 60, // onboarding
     holding:false,
     lastNearT: 0
+    laneFrom: 1,
+    laneTo: 1,
+    laneT: 1,          // 1 = xong tween; 0->1 = đang di chuyển
+    pendingDir: 0,
   };
 
   /* ====================== Input ======================= */
-  function switchLane(dir){ state.targetLane = clamp(state.targetLane + dir, 0, CONFIG.GAME.lanes-1); }
+  function switchLane(dir){
+    // Nếu đang di chuyển, xếp hàng đợi (chỉ giữ hướng cuối)
+    if (state.laneT < 1) { state.pendingDir = Math.sign(dir); return; }
+    // Bắt đầu 1 bước chuyển làn mới
+    const next = clamp(state.laneTo + Math.sign(dir), 0, CONFIG.GAME.lanes - 1);
+    if (next === state.laneTo) return;  // mép đường -> bỏ qua
+    state.laneFrom = state.laneTo;
+    state.laneTo   = next;
+    state.laneT    = 0;
+  }
+  
 
   // Keyboard
   window.addEventListener('keydown', (e)=>{
@@ -265,7 +280,27 @@
     $('#score').textContent = String(Math.floor(state.score));
 
     // smooth lane
-    state.lane += (state.targetLane - state.lane) * Math.min(1, dtEff/120);
+    // tween lane: 1 lần bấm = 1 làn, không vượt quá
+    if (CONFIG.GAME.laneMoveMs <= 0) {
+      state.lane = state.laneTo; // nhảy tức thì
+    } else {
+      if (state.laneT < 1) {
+        state.laneT = Math.min(1, state.laneT + dtEff / CONFIG.GAME.laneMoveMs);
+        // easing: easeOutCubic
+        const t = state.laneT, e = 1 - Math.pow(1 - t, 3);
+        state.lane = state.laneFrom + (state.laneTo - state.laneFrom) * e;
+      } else if (state.pendingDir) {
+        // thực thi lệnh kế tiếp nếu có hàng đợi
+        const d = state.pendingDir; state.pendingDir = 0;
+        const next = clamp(state.laneTo + d, 0, CONFIG.GAME.lanes - 1);
+        if (next !== state.laneTo) {
+          state.laneFrom = state.laneTo;
+          state.laneTo   = next;
+          state.laneT    = 0;
+        }
+      }
+    }
+
 
     // spawn
     state.lastSpawn += dtEff;
