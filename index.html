@@ -1023,6 +1023,7 @@
     $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true; $('#touchCtrl').hidden=false;
     $('#score').textContent='0'; $('#best').textContent=String(state.best);
     lastGaugePct=-1; drawGauge();
+    drawEnergyBar();
   }
   function startFromUI(){
     const name=$('#name').value.trim().slice(0,16);
