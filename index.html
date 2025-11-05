@@ -475,27 +475,24 @@
     // Spawn
     // Spawn (an toàn)
     state.lastSpawn += dtEff;
-    const spawnEvery = SPAWN_TABLE[Math.min(SPAWN_TABLE.length-1, state.spawnIdx|0)];
-    const spawnMul   = state.surgeMs>0 ? 0.7 : 1;
+    const spawnMul = state.surgeMs>0 ? 0.7 : 1;
     
-    // Giới hạn số lần spawn / frame để tránh kẹt CPU khi spawnEvery tiệm cận min
     let spawned = 0;
     const cap = Math.min(CONFIG.GAME.maxSpawnsPerFrame,
                          CONFIG.PERF.maxEntities - state.entities.length);
     
-    while (state.lastSpawn >= spawnEvery*spawnMul && spawned < cap) {
-      state.lastSpawn -= spawnEvery*spawnMul;
+    while (state.lastSpawn >= spawnEvery * spawnMul && spawned < cap) {
+      state.lastSpawn -= spawnEvery * spawnMul;
       const times = 1 + (state.surgeMs>0 ? 1 : 0);
-      for (let k=0; k<times; k++) trySpawn();
+      for (let k = 0; k < times; k++) trySpawn();
       spawned++;
     }
     
-    // Nếu bị backlog lớn (do cap), cắt bớt để frame tiếp theo không “nổ”
-    if (spawned >= cap && state.lastSpawn > spawnEvery*spawnMul*4) {
+    // Nếu backlog lớn do cap, cắt bớt để frame sau không “nổ”
+    if (spawned >= cap && state.lastSpawn > spawnEvery * spawnMul * 4) {
       state.lastSpawn = 0;
     }
-
-
+     
     // Move + collisions
     const px = laneX(state.lane), py = state.playerY;
     for (let i=state.entities.length-1;i>=0;i--) {
