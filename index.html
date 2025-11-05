@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+  <meta name="theme-color" content="#0ea5e9">
+  <meta name="robots" content="noindex,nofollow">
+  <title>HyperRush — Freeze Edition</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root{ --brand:#0ea5e9; --bg:#0b1220; --card:#0f172a; --text:#e5f0ff; --muted:#93a4c3; --ok:#16a34a; --bad:#ef4444; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1220,#0b1326 60%,#0b1220);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+    #wrap{max-width:480px;margin:0 auto;position:relative;height:100vh}
+    #game{display:block;width:100%;height:100%;background:radial-gradient(ellipse at 50% -10%,rgba(14,165,233,.25),transparent 55%), linear-gradient(180deg, #0a0f1c, #0b1220)}
+    .ui{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px}
+    .card{background:rgba(15,23,42,.82);backdrop-filter:blur(8px);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:18px 16px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(14,165,233,.08)}
+    h1{font-size:22px;margin:0 0 4px;letter-spacing:.2px}
+    p{margin:4px 0 10px;color:var(--muted);font-size:14px}
+    .row{display:flex;gap:10px;margin-top:10px}
+    button{flex:1;border:0;border-radius:12px;background:var(--brand);color:#fff;font-weight:700;padding:12px 14px;font-size:16px;box-shadow:0 10px 30px rgba(14,165,233,.25);cursor:pointer}
+    button:active{transform:translateY(1px)}
+    input[type="text"]{flex:1;background:#0b1220;border:1px solid rgba(148,163,184,.2);border-radius:12px;color:#fff;padding:10px 12px;outline:none}
+    .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.4)}
+    .pill{background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.15);padding:8px 12px;border-radius:999px}
+    .hint{font-size:12px;color:var(--muted)}
+    .small{font-size:12px}
+    .center{text-align:center}
+    .mt8{margin-top:8px}
+    /* Freeze gauge */
+    #gauge{position:absolute;right:10px;bottom:10px;width:84px;height:84px;border-radius:999px;background:rgba(2,6,23,.5);border:1px solid rgba(148,163,184,.15);display:flex;align-items:center;justify-content:center}
+    #gauge canvas{width:72px;height:72px}
+    #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:6px 10px;background:rgba(250,250,250,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;opacity:0;transition:opacity .2s, transform .2s}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="game" width="360" height="640" aria-label="HyperRush Freeze"></canvas>
+
+    <div id="uiStart" class="ui" role="dialog" aria-modal="true">
+      <div class="card">
+        <h1>HyperRush — Freeze</h1>
+        <p>MỚI: <b>Giữ chạm</b> để làm chậm thời gian. Gần va chạm (near‑miss) + ăn orb để nạp năng lượng.</p>
+        <div class="row">
+          <input id="name" type="text" maxlength="16" placeholder="Tên hiển thị (tuỳ chọn)">
+          <button id="btnPlay">Chơi ngay</button>
+        </div>
+        <p class="hint">Vuốt trái/phải đổi làn. Giữ màn hình để <b>Freeze</b>. PC: A/D hoặc ← →, giữ Space để freeze.</p>
+        <div class="small">Bản đồ mỗi ngày thay đổi (daily seed). Hãy thử vượt mốc 2.500!</div>
+      </div>
+    </div>
+
+    <div id="uiHUD" class="hud" hidden>
+      <div class="pill">Điểm: <span id="score">0</span></div>
+      <div class="pill">Best: <span id="best">0</span></div>
+    </div>
+
+    <div id="uiOver" class="ui" hidden role="dialog" aria-modal="true">
+      <div class="card center">
+        <h1>Thua rồi!</h1>
+        <p>Điểm: <b id="finalScore">0</b> • Best: <b id="best2">0</b></p>
+        <div class="row">
+          <button id="btnRetry">Chơi lại</button>
+          <button id="btnShare">Chia sẻ</button>
+        </div>
+        <div class="hint mt8">Tip: Tạo “sượt nhẹ” để nạp freeze nhanh hơn.</div>
+      </div>
+    </div>
+
+    <div id="gauge" aria-label="Freeze energy">
+      <canvas id="gcv" width="128" height="128"></canvas>
+    </div>
+    <div id="toast">NEAR‑MISS +6%</div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ====================== Config ====================== */
+  const CONFIG = {
+    API_URL: '', // optional leaderboard
+    GAME: {
+      lanes: 3,
+      baseSpeed: 135,
+      accel: 0.06,
+      spawnEvery: 740,
+      spawnAccel: 0.986,
+      orbChance: 0.30,
+      freezeRate: 0.28,   // % per 10ms drain while holding (0.28% -> ~3.5s full → 0s)
+      regenPassive: 0.003, // % per 10ms when not holding
+      regenNear: 6,        // % per near-miss
+      regenOrb: 10,        // % per orb
+      freezeSlow: 0.25     // time scale while freezing
+    }
+  };
+
+  /* ====================== Utils ======================= */
+  const $ = sel => document.querySelector(sel);
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const now = ()=>performance.now();
+
+  function getDeviceId(){
+    const k='hrfz_device_id'; let id=localStorage.getItem(k);
+    if(!id){ id=crypto.getRandomValues(new Uint32Array(4)).join('-'); localStorage.setItem(k,id); }
+    return id;
+  }
+
+  function mulberry32(a){ return function(){ var t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
+
+  function fitCanvas(canvas){
+    const parent=canvas.parentElement; const ratio=canvas.width/canvas.height;
+    const w=parent.clientWidth, h=parent.clientHeight; let cw=w, ch=w/ratio;
+    if (ch>h) { ch=h; cw=h*ratio; } canvas.style.width=cw+'px'; canvas.style.height=ch+'px';
+  }
+
+  // Daily seed from UTC date (fixed pattern worldwide per day)
+  function dailySeed(){
+    const d = new Date(); const s = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())>>>0;
+    return s ^ (getDeviceId().split('-')[0]>>>0);
+  }
+
+  /* ====================== Backend (optional) ========== */
+  async function postScore(name, score) {
+    if (!CONFIG.API_URL) return;
+    try {
+      const body = JSON.stringify({
+        deviceId: getDeviceId(),
+        name: String(name||'').slice(0,16),
+        score: Math.max(0, Math.floor(score)),
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        ua: navigator.userAgent
+      });
+      const r = await fetch(CONFIG.API_URL, {method:'POST', mode:'cors',
+        headers: {'Content-Type':'application/json'}, body});
+      return await r.json();
+    } catch (e) { console.warn('postScore', e); }
+  }
+
+  /* ====================== Game State =================== */
+  const canvas = $('#game'); const ctx = canvas.getContext('2d');
+  let W=canvas.width, H=canvas.height;
+  fitCanvas(canvas); window.addEventListener('resize', ()=>fitCanvas(canvas));
+
+  const gcv = $('#gcv'); const gctx = gcv.getContext('2d'); // gauge
+
+  const state = {
+    running:false, over:false,
+    name:'', score:0, best:Number(localStorage.getItem('hrfz_best')||0),
+    rng: mulberry32(dailySeed()),
+    speed: CONFIG.GAME.baseSpeed,
+    lastSpawn: 0, spawnEvery: CONFIG.GAME.spawnEvery,
+    lane:1, targetLane:1,
+    playerY: H-120,
+    entities: [], // {type:'ob'|'orb', lane:int, y:number}
+    lastTime: 0,
+    energy: 60, // start with 60% for onboarding
+    holding:false, slow:false,
+    lastNearT: 0
+  };
+
+  /* ====================== Input ======================= */
+  function switchLane(dir){ state.targetLane = clamp(state.targetLane + dir, 0, CONFIG.GAME.lanes-1); }
+
+  window.addEventListener('keydown', (e)=>{
+    const k = e.key.toLowerCase();
+    if (k==='arrowleft'||k==='a') switchLane(-1);
+    if (k==='arrowright'||k==='d') switchLane(1);
+    if (k===' ') state.holding = true;
+  }, {passive:true});
+  window.addEventListener('keyup', (e)=>{ if (e.key===' ') state.holding=false; }, {passive:true});
+
+  let tStartX=0, moved=false;
+  canvas.addEventListener('touchstart', e=>{ tStartX = e.changedTouches[0].clientX; moved=false; state.holding=true; }, {passive:true});
+  canvas.addEventListener('touchmove', e=>{
+    const x = e.changedTouches[0].clientX; const dx = x - tStartX;
+    if (Math.abs(dx)>24){ switchLane(dx>0?1:-1); tStartX=x; moved=true; }
+  }, {passive:true});
+  canvas.addEventListener('touchend', ()=>{ state.holding=false; }, {passive:true});
+
+  /* ====================== Loop ======================== */
+  function update(dt) {
+    // Time scaling if freezing
+    const timeScale = state.holding && state.energy>0 ? CONFIG.GAME.freezeSlow : 1;
+    const dtEff = dt * timeScale;
+
+    // drain / regen energy
+    if (state.holding && state.energy>0) state.energy = Math.max(0, state.energy - CONFIG.GAME.freezeRate * (dt/10));
+    else state.energy = Math.min(100, state.energy + CONFIG.GAME.regenPassive * (dt/10));
+
+    // difficulty & score
+    state.speed += CONFIG.GAME.accel * dtEff/16.6;
+    state.spawnEvery *= Math.pow(CONFIG.GAME.spawnAccel, dtEff/16.6);
+    state.score += dtEff * 0.06 * (1 + (state.lastNearT && (now()-state.lastNearT<1200) ? 0.15 : 0)); // small near-miss buff
+
+    $('#score').textContent = String(Math.floor(state.score));
+
+    // smooth lane
+    state.lane += (state.targetLane - state.lane) * Math.min(1, dtEff/120);
+
+    // spawn
+    state.lastSpawn += dtEff;
+    while (state.lastSpawn >= state.spawnEvery) {
+      state.lastSpawn -= state.spawnEvery;
+      const lane = Math.floor(state.rng()*CONFIG.GAME.lanes);
+      const roll = state.rng();
+      if (roll < CONFIG.GAME.orbChance) state.entities.push({type:'orb', lane, y:-40});
+      else state.entities.push({type:'ob', lane, y:-40});
+    }
+
+    // move + collisions
+    const speed = state.speed;
+    const px = laneX(state.lane), py = state.playerY;
+    for (let i=state.entities.length-1;i>=0;i--) {
+      const e = state.entities[i];
+      e.y += speed * dtEff/1000;
+      // near-miss check (only for obstacles)
+      if (e.type==='ob') {
+        const dx = Math.abs(laneX(e.lane)-px), dy = Math.abs(e.y - py);
+        if (dx < 38 && dy>36 && dy<86) {
+          // near miss window
+          if (now()-state.lastNearT>240) {
+            state.energy = Math.min(100, state.energy + CONFIG.GAME.regenNear);
+            toast('NEAR‑MISS +' + CONFIG.GAME.regenNear + '%');
+            state.lastNearT = now();
+          }
+        }
+      }
+
+      // collect / collide
+      if (Math.abs(laneX(e.lane)-px) < 36 && Math.abs(e.y - py) < 36) {
+        if (e.type==='orb') {
+          state.score += 50;
+          state.energy = Math.min(100, state.energy + CONFIG.GAME.regenOrb);
+          state.entities.splice(i,1);
+          flash(120);
+        } else {
+          if (state.score > state.best) { state.best = Math.floor(state.score); localStorage.setItem('hrfz_best', state.best); }
+          boom();
+          return gameOver();
+        }
+      }
+      if (e.y > H+50) state.entities.splice(i,1);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    drawRoad();
+    for (const e of state.entities) {
+      if (e.type==='ob') drawObstacle(laneX(e.lane), e.y);
+      else drawOrb(laneX(e.lane), e.y);
+    }
+    drawPlayer(laneX(state.lane), state.playerY);
+    drawGauge();
+  }
+
+  let last = now(), acc=0;
+  function loop(){
+    if (!state.running) return;
+    const t=now(); let dt=Math.min(34, t-last); last=t; acc+=dt;
+    while (acc>=16){ update(16); acc-=16; }
+    draw(); requestAnimationFrame(loop);
+  }
+
+  /* ================== Rendering helpers ================= */
+  function laneX(lane){
+    const margin=40; const roadW=W - margin*2; const laneW = roadW/CONFIG.GAME.lanes;
+    return Math.round(margin + laneW*(0.5 + lane));
+  }
+
+  function drawRoad(){
+    const margin=40; const roadW=W - margin*2;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(148,163,184,0.15)'; ctx.lineWidth=2;
+    for (let i=1;i<CONFIG.GAME.lanes;i++){ const x=margin+roadW/CONFIG.GAME.lanes*i; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    const offset = ((performance.now() * (state.holding && state.energy>0 ? 0.25 : 1))/20) % 40;
+    ctx.strokeStyle='rgba(14,165,233,0.25)'; ctx.lineWidth=4;
+    for (let y=-offset; y<H; y+=40){ ctx.beginPath(); ctx.moveTo(margin+8,y); ctx.lineTo(W-margin-8,y); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function drawPlayer(x,y){
+    ctx.save(); ctx.translate(x,y);
+    ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0,18,20,8,0,0,Math.PI*2); ctx.fill();
+    const grd = ctx.createLinearGradient(-16,-16,16,16);
+    grd.addColorStop(0,'#22d3ee'); grd.addColorStop(1,'#0ea5e9');
+    ctx.fillStyle=grd; roundRect(-16,-16,32,32,8,true,false);
+    ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(0,-8); ctx.lineTo(8,0); ctx.lineTo(0,8); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawObstacle(x,y){
+    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.sin(performance.now()/250 + x)*0.15); ctx.fillStyle='rgba(239,68,68,.92)';
+    roundRect(-18,-18,36,36,8,true,false); ctx.restore();
+  }
+  function drawOrb(x,y){
+    ctx.save(); ctx.translate(x,y); const r=10+Math.sin(performance.now()/120 + x)*2;
+    const g=ctx.createRadialGradient(0,0,2,0,0,r); g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(1,'rgba(14,165,233,.9)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r,fill,stroke){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  /* =============== FX / Gauge / Toast ================== */
+  let flashT=0, boomT=0;
+  function flash(ms){ flashT=now()+ms; }
+  function boom(){ boomT=now()+250; }
+  const origFill = ctx.fillStyle;
+  const _draw = draw;
+  draw = function(){ _draw(); postFX(); };
+
+  function postFX(){
+    const t=now();
+    if (flashT>t){ ctx.fillStyle='rgba(255,255,255,.2)'; ctx.fillRect(0,0,W,H); ctx.fillStyle=origFill; }
+    if (boomT>t){ const k=(boomT-t)/250; ctx.save(); ctx.translate(W/2,H/2); ctx.rotate((1-k)*0.4); ctx.scale(1+(1-k)*0.05,1+(1-k)*0.05); ctx.restore(); }
+  }
+
+  function drawGauge(){
+    const pct = clamp(state.energy,0,100)/100;
+    const c=gctx; const w=gcv.width, h=gcv.height; c.clearRect(0,0,w,h);
+    c.save(); c.translate(w/2,h/2);
+    // back ring
+    c.strokeStyle='rgba(148,163,184,.2)'; c.lineWidth=12; c.beginPath(); c.arc(0,0,38,0,Math.PI*2); c.stroke();
+    // front arc
+    const end = -Math.PI/2 + pct*2*Math.PI;
+    const grad = c.createLinearGradient(-40,-40,40,40); grad.addColorStop(0,'#22d3ee'); grad.addColorStop(1,'#0ea5e9');
+    c.strokeStyle = grad; c.lineWidth=12; c.lineCap='round'; c.beginPath(); c.arc(0,0,38,-Math.PI/2, end); c.stroke();
+    // icon
+    c.fillStyle='rgba(255,255,255,.9)'; c.beginPath(); c.moveTo(-6,0); c.lineTo(0,-6); c.lineTo(6,0); c.lineTo(0,6); c.closePath(); c.fill();
+    c.restore();
+  }
+
+  function toast(txt){
+    const el=$('#toast'); el.textContent=txt; el.classList.add('show');
+    clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),700);
+  }
+
+  /* ====================== UI =========================== */
+  function resetGame(){
+    state.running=true; state.over=false;
+    state.score=0; state.speed=CONFIG.GAME.baseSpeed;
+    state.lastSpawn=0; state.spawnEvery=CONFIG.GAME.spawnEvery;
+    state.lane=1; state.targetLane=1;
+    state.entities.length=0; state.lastTime=now();
+    state.energy = 60; // onboarding
+    $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true;
+    $('#score').textContent='0'; $('#best').textContent=String(state.best);
+  }
+
+  function gameOver(){
+    state.running=false; state.over=true;
+    $('#uiHUD').hidden=true; $('#uiOver').hidden=false;
+    $('#finalScore').textContent = Math.floor(state.score);
+    $('#best2').textContent = state.best;
+    postScore(state.name, state.score).catch(()=>{});
+  }
+
+  function startFromUI(){
+    state.name = $('#name').value.trim().slice(0,16);
+    resetGame(); loop();
+  }
+
+  $('#btnPlay').addEventListener('click', startFromUI);
+  $('#btnRetry').addEventListener('click', startFromUI);
+  $('#btnShare').addEventListener('click', async ()=>{
+    const text=`Tôi đạt ${Math.floor(state.score)} điểm ở #HyperRushFreeze — bạn dám vượt không?`;
+    try{
+      if (navigator.share) await navigator.share({title:'HyperRush Freeze', text, url:location.href});
+      else { await navigator.clipboard.writeText(`${text}\n${location.href}`); alert('Đã copy liên kết!'); }
+    }catch(_){}
+  });
+
+  $('#best').textContent = String(state.best);
+
+  // autoplay support: ?autoplay=1
+  const ps = new URLSearchParams(location.search);
+  if (ps.get('autoplay')==='1'){ setTimeout(startFromUI, 300); }
+
+  // PWA
+  if ('serviceWorker' in navigator) { window.addEventListener('load', ()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
+  new ResizeObserver(()=>fitCanvas(canvas)).observe($('#wrap'));
+})();</script>
+</body>
+</html>
