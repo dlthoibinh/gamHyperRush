@@ -135,11 +135,20 @@
         tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
         ua: navigator.userAgent
       });
-      const r = await fetch(CONFIG.API_URL, {method:'POST', mode:'cors',
-        headers: {'Content-Type':'application/json'}, body});
-      return await r.json();
-    } catch (e) { console.warn('postScore', e); }
+      const r = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' }, // tránh preflight
+        body
+      });
+      // không cần đọc response, nhưng nếu muốn:
+      // return await r.json().catch(()=>null);
+    } catch (e) {
+      console.warn('postScore', e);
+      return null;
+    }
   }
+
 
   /* ====================== Game State =================== */
   const canvas = $('#game'); const ctx = canvas.getContext('2d');
