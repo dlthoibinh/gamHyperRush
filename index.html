@@ -244,6 +244,12 @@
     campCooldownMs: 1000,  // giãn cách giữa 2 lần ép
     spawnJitter: 90        // ↑ tăng biên độ jitter (≈ minGap/2)
   };
+  /* --------- Auto-snap nhân vật về tâm làn --------- */
+  const AUTO_SNAP = {      // Tắt = đặt enable:false
+    enable: true,          // true = bật
+    speed : 0.12           // 0.10-0.18 → càng lớn càng snap nhanh
+  };
+
   // Bật debug bằng ?debug=1
   const DBG = new URLSearchParams(location.search).get('debug') === '1';
 
@@ -593,6 +599,19 @@
     $('#score').textContent = String(Math.floor(state.score));
 
     smoothLane(dtEff);
+    /* ===== Auto-snap về giữa làn (khi buông tay) ===== */
+    if (AUTO_SNAP.enable && !state.dragging && !state.holding) {
+      const nearest = Math.round(state.desiredLane);     // làn chuẩn (0,1,2…)
+      const diff    = nearest - state.desiredLane;
+      if (Math.abs(diff) > 0.001) {                      // còn lệch
+        state.desiredLane += diff * AUTO_SNAP.speed;     // nội suy êm
+        if (Math.abs(nearest - state.desiredLane) <= 0.02){
+          state.desiredLane = nearest;                   // chốt cứng
+          state.laneV = 0;                               // dừng dao động
+        }
+      }
+    }
+
     /* Theo dõi đổi làn nguyên để reset đồng hồ camping */
     {
       const li = Math.round(state.desiredLane);
