@@ -132,6 +132,22 @@
     @media (min-width: 900px){
       #game{ border-radius: 18px; }
     }
+    /* ==== Energy bar ==== */
+    #energyWrap{
+      flex:1;
+      height:10px;                /* độ cao bar */
+      margin:0 12px;
+      background:rgba(2,6,23,.55);
+      border:1px solid rgba(148,163,184,.15);
+      border-radius:999px;
+      overflow:hidden;
+    }
+    #energyFill{
+      height:100%;
+      width:100%;                 /* sẽ bị JS chỉnh % */
+      background:linear-gradient(90deg,#16a34a,#22d3ee);
+      transition:width .15s linear;
+    }
 
   </style>
 </head>
@@ -164,6 +180,11 @@
       <div class="pill">Điểm: <span id="score">0</span></div>
       <div class="pill">Best: <span id="best">0</span></div>
       <div class="pill small" id="stageLabel">Stage 1</div>
+        <!-- Energy bar -->
+      <div id="energyWrap">
+        <div id="energyFill"></div>
+      </div>
+
     </div>
 
     <div id="uiOver" class="ui" hidden role="dialog" aria-modal="true">
@@ -437,6 +458,7 @@
   const gcv = $('#gcv'); 
   const gctx = gcv.getContext('2d');
 
+  const energyFill = $('#energyFill');
 
   let W=BASE_W, H=BASE_H;
   const state = {
@@ -461,7 +483,8 @@
     nearMissCount:0,
     lowSpec:false, fpsEMA:60,
     gfxTier:0, _tierLockT:0, frame:0,
-    lastSlipT:0,                 // <-- THÊM DẤU PHẨY Ở CUỐI DÒNG NÀY
+    lastSlipT:0,    
+    energyEmptyT: 0, 
     lastLaneChangeT: now(),      // lần gần nhất đổi làn nguyên
     _laneI: 1,                   // làn nguyên hiện tại (để so sánh)
     _antiCampT: 0,               // cooldown anti-camp
@@ -593,6 +616,18 @@
     state.energy = state.holding && state.energy>0
       ? Math.max(0, state.energy - CONFIG.GAME.freezeRate * (dt/10))
       : Math.min(100, state.energy + CONFIG.GAME.regenPassive * (dt/10));
+    drawEnergyBar();
+    /* --- Death on zero energy --- */
+    if (state.energy <= 0){
+      if (!state.energyEmptyT) state.energyEmptyT = now();           // đánh dấu
+      else if (now() - state.energyEmptyT > 2000){                   // >2 s
+        toast('Kiệt sức!');
+        boom(); AudioKit.sfx('hit'); vibrate([60,40,100]);
+        return gameOver();
+      }
+    }else{
+      state.energyEmptyT = 0;  // reset khi có năng lượng lại
+    }
 
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
     state.spawnIdx += dtEff/16.6;
@@ -935,6 +970,16 @@
     c.fillStyle='rgba(255,255,255,.9)'; c.beginPath(); c.moveTo(-5,0); c.lineTo(0,-5); c.lineTo(5,0); c.lineTo(0,5); c.closePath(); c.fill();
     c.restore();
   }
+  function drawEnergyBar(){
+    const pct = clamp(state.energy,0,100);
+    energyFill.style.width = pct + '%';
+  
+    /* Đổi màu từ xanh→vàng→đỏ */
+    if (pct > 60)      energyFill.style.background = 'linear-gradient(90deg,#16a34a,#22d3ee)';
+    else if (pct > 30) energyFill.style.background = 'linear-gradient(90deg,#eab308,#facc15)';
+    else               energyFill.style.background = 'linear-gradient(90deg,#ef4444,#b91c1c)';
+  }
+
   function toast(txt){
     const el=$('#toast'); el.textContent=txt; el.classList.add('show');
     clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),760);
