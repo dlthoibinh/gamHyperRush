@@ -236,12 +236,15 @@
     low: { maxEntities:80,  maxParticles:60,  minSpawnEvery:320, cap:3,  roadStep:72,  dprAdj:-0.30 }
   };
   /* ===== Anti-exploit ===== */
+  /* ===== Anti-exploit (tinh chỉnh) ===== */
   const ANTI = {
-    campMs: 1800,         // >1.8s không đổi làn => coi là camping
-    campCooldownMs: 1200, // giãn cách giữa 2 lần ép chặn
-    corridorBand: 42,     // dải y (px) coi là cùng một hàng để phá "hành lang"
-    spawnJitter: 18       // lệch y khi spawn để khỏi thẳng hàng
+    campMs: 1800,          // >1.8s không đổi làn => camping
+    campCooldownMs: 1000,  // giãn cách giữa 2 lần ép chặn
+    spawnJitter: 44        // lệch y mạnh tay để phá lưới
   };
+  // Bật debug bằng ?debug=1
+  const DBG = new URLSearchParams(location.search).get('debug') === '1';
+
 
   const LOW = (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=4);
   if (LOW){ CONFIG.PERF.dprMax=1.2; CONFIG.PERF.maxParticles=140; }
@@ -685,11 +688,15 @@
     state.shake *= mqlReduce.matches ? 0.9 : 0.92;
   }
   /* Gợi ý làn để phá "hành lang" (2 kín, 1 trống trong cùng dải y) */
+  /* Gợi ý làn để phá "hành lang" (2 kín, 1 trống trong dải y gần nhau) */
   function corridorSuggest(y){
+    // band động: theo bước vạch đường & khoảng cách tối thiểu giữa vật cản
+    const band = Math.max(ROAD_STEP * 2.2, CONFIG.GAME.minGapObPx * 0.75); // ~90–160px
     const occ = new Array(CONFIG.GAME.lanes).fill(false);
+  
     for (const e of state.entities){
       if (e.type !== 'ob') continue;
-      if (Math.abs(e.y - y) <= ANTI.corridorBand) occ[e.lane] = true;
+      if (Math.abs(e.y - y) <= band) occ[e.lane] = true;
     }
     let empty = -1, filled = 0;
     for (let i=0;i<occ.length;i++){
@@ -698,49 +705,62 @@
     return (filled === CONFIG.GAME.lanes - 1) ? empty : -1; // chỉ còn đúng 1 làn trống
   }
 
+
   function trySpawn(){
     if (state.entities.length >= CONFIG.PERF.maxEntities) return;
   
     const early = (state.score < 80);
     const type  = (state.rng() < (early ? 0.4 : CONFIG.GAME.orbChance)) ? 'orb' : 'ob';
-    if (early && type === 'ob') return;
+    if (early && type === 'ob') return; // giai đoạn dễ cho người mới
   
-    // lane ngẫu nhiên trước
     let lane  = Math.floor(state.rng() * CONFIG.GAME.lanes);
     let tries = 0;
   
-    /* 1) Anti-camping: đứng một làn quá lâu => ưu tiên chặn đúng làn người chơi (có cooldown) */
+    // 1) Anti-camping: đứng > campMs thì ưu tiên chặn đúng làn hiện tại (có cooldown)
     if (type === 'ob'
         && (now() - state.lastLaneChangeT > ANTI.campMs)
         && (now() - state._antiCampT   > ANTI.campCooldownMs)) {
       lane = Math.round(state.lane);
       state._antiCampT = now();
+      if (DBG) toast('ANTI-CAMP');
     }
   
-    /* 2) Đảm bảo khoảng cách dọc + 3) Jitter y để khử "lưới thẳng hàng"
-          4) Phá "hành lang" nếu chỉ còn 1 làn trống trong cùng dải y */
-    do {
-      let lastY = null;
-      for (let i = state.entities.length - 1; i >= 0; i--) {
+    // helper: y cuối cùng của lane + loại
+    const lastYOn = (ln, tp) => {
+      for (let i=state.entities.length-1;i>=0;i--){
         const e = state.entities[i];
-        if (e.lane === lane && e.type === type) { lastY = e.y; break; }
+        if (e.lane===ln && e.type===tp) return e.y;
       }
-      const need = (type === 'ob' ? CONFIG.GAME.minGapObPx : CONFIG.GAME.minGapOrbPx);
+      return null;
+    };
   
-      if (lastY === null || (lastY + 40) >= need) {
-        // Phá "hành lang" (chỉ áp dụng cho obstacle)
+    // 2) Khoảng cách dọc + 3) Jitter y + 4) Phá "hành lang"
+    const needOb  = CONFIG.GAME.minGapObPx;
+    const needOrb = CONFIG.GAME.minGapOrbPx;
+  
+    do {
+      const jitter = Math.floor(state.rng() * ANTI.spawnJitter);
+      const y0 = -40 - jitter;                       // vị trí spawn thực sự
+      const need = (type === 'ob' ? needOb : needOrb);
+  
+      // đảm bảo cách đủ xa vật cùng lane & cùng loại (tính theo trục y)
+      const lastY = lastYOn(lane, type);
+      const okGap = (lastY === null) ? true : ((y0 - lastY) <= -need); // y tăng xuống dưới ⇒ new y phải "trên" đủ xa
+  
+      if (okGap) {
+        // phá "hành lang": nếu 2 kín 1 trống gần y0 thì ép sang làn trống
         if (type === 'ob') {
-          const sug = corridorSuggest(-40);
-          if (sug !== -1) lane = sug;
+          const sug = corridorSuggest(y0);
+          if (sug !== -1) { lane = sug; if (DBG) toast('CORRIDOR FIX'); }
         }
-        // spawn với jitter y để tránh thẳng hàng
-        const jitter = Math.floor(state.rng() * ANTI.spawnJitter);
-        state.entities.push({ type, lane, y: -40 - jitter });
+        state.entities.push({ type, lane, y: y0 });
         return;
       }
+      // không đủ khoảng cách ⇒ thử lane khác
       lane = (lane + 1) % CONFIG.GAME.lanes;
     } while (++tries < CONFIG.GAME.maxSpawnAttempts);
   }
+
 
 
   /* =============== Render =============== */
