@@ -11,8 +11,8 @@
     :root{ --brand:#0ea5e9; --bg:#0b1220; --card:#0f172a; --text:#e5f0ff; --muted:#93a4c3; --ok:#16a34a; --bad:#ef4444; }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0;background:linear-gradient(180deg,#0b1220,#0b1326 60%,#0b1220);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-    #wrap{max-width:480px;margin:0 auto;position:relative;height:100vh}
+    body{margin:0;background:linear-gradient(180deg,#0b1220,#0b1326 60%,#0b1220);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;outline:0}
+    #wrap{max-width:480px;margin:0 auto;position:relative;height:100vh;overflow:hidden}
     #game{display:block;width:100%;height:100%;background:radial-gradient(ellipse at 50% -10%,rgba(14,165,233,.25),transparent 55%), linear-gradient(180deg, #0a0f1c, #0b1220)}
     .ui{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px}
     .card{background:rgba(15,23,42,.82);backdrop-filter:blur(8px);border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:18px 16px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(14,165,233,.08)}
@@ -22,17 +22,18 @@
     button{flex:1;border:0;border-radius:12px;background:var(--brand);color:#fff;font-weight:700;padding:12px 14px;font-size:16px;box-shadow:0 10px 30px rgba(14,165,233,.25);cursor:pointer}
     button:active{transform:translateY(1px)}
     input[type="text"]{flex:1;background:#0b1220;border:1px solid rgba(148,163,184,.2);border-radius:12px;color:#fff;padding:10px 12px;outline:none}
-    .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.4)}
+    .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.4);z-index:40}
     .pill{background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.15);padding:8px 12px;border-radius:999px}
     .hint{font-size:12px;color:var(--muted)}
     .small{font-size:12px}
     .center{text-align:center}
     .mt8{margin-top:8px}
 
-    /* Freeze gauge */
-    #gauge{position:absolute;right:10px;bottom:10px;width:84px;height:84px;border-radius:999px;background:rgba(2,6,23,.5);border:1px solid rgba(148,163,184,.15);display:flex;align-items:center;justify-content:center}
-    #gauge canvas{width:72px;height:72px}
-    #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:6px 10px;background:rgba(250,250,250,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;opacity:0;transition:opacity .18s, transform .18s}
+    /* Gauge – CỐ ĐỊNH kích thước + không nhận chạm */
+    #gauge{position:absolute;right:8px;top:46px;width:64px;height:64px;border-radius:999px;background:rgba(2,6,23,.45);border:1px solid rgba(148,163,184,.15);display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none}
+    #gcv{width:56px;height:56px;display:block}
+
+    #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:6px 10px;background:rgba(250,250,250,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;opacity:0;transition:opacity .18s, transform .18s;z-index:45}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
 
     /* Force-hide any [hidden] */
@@ -46,7 +47,7 @@
     /* Nút điều khiển phụ (mobile) */
     .touch-ctrl{
       position:absolute;left:0;right:0;bottom:18px;
-      display:flex;justify-content:space-between;padding:0 18px;pointer-events:none
+      display:flex;justify-content:space-between;padding:0 18px;pointer-events:none;z-index:35
     }
     .touch-ctrl button{
       width:64px;height:64px;border-radius:999px;border:0;
@@ -91,11 +92,10 @@
     </div>
 
     <div id="gauge" aria-label="Freeze energy">
-      <canvas id="gcv" width="128" height="128"></canvas>
+      <canvas id="gcv" width="96" height="96"></canvas>
     </div>
     <div id="toast">NEAR-MISS +6%</div>
 
-    <!-- Điều khiển phụ (mobile) -->
     <div id="touchCtrl" class="touch-ctrl" hidden>
       <button id="btnL">◀</button>
       <button id="btnR">▶</button>
@@ -109,63 +109,64 @@
   /* ====================== Config ====================== */
   const CONFIG = {
     API_URL: 'https://script.google.com/macros/s/AKfycbznfw8rrffCKv0OObRRc8j6YHKir6dEwpLrG4eNn-Azc3xvg4_UrI3fbUoBRv6Dq-e1DQ/exec', // optional leaderboard
-    AUDIO: { enabled: true, volume: 0.35 },
+    AUDIO: { enabled: true, volume: 0.32 },
+    PERF:  { dprMax: 1.5, maxEntities: 120, maxParticles: 180 },
     GAME: {
       lanes: 3,
       baseSpeed: 135,
       accel: 0.06,
       spawnEvery: 740,
       spawnAccel: 0.986,
-      orbChance: 0.30,
-      freezeRate: 0.28,    // % per 10ms drain while holding
-      regenPassive: 0.003, // % per 10ms when not holding
-      regenNear: 6,        // % per near-miss
-      regenOrb: 10,        // % per orb
-      freezeSlow: 0.25,    // time scale while freezing
-      laneMoveMs: 110,     // tween 1 bước/1 lần
-      minGapObPx: 140,     // khoảng cách tối thiểu theo làn cho obstacle
-      minGapOrbPx: 110,
+      orbChance: 0.22,       // ít orb hơn cho đỡ rối
+      freezeRate: 0.28,
+      regenPassive: 0.003,
+      regenNear: 6,
+      regenOrb: 10,
+      freezeSlow: 0.25,
+      laneMoveMs: 110,
+      minGapObPx: 148,
+      minGapOrbPx: 118,
       maxSpawnAttempts: 3,
-      surgeEvery: 300,     // mỗi 300 điểm → 3s “Cửa hẹp”
+      surgeEvery: 300,
       surgeMs: 3000
     }
   };
+
+  // Tự giảm hiệu ứng cho máy yếu
+  const LOW = (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=4);
+  if (LOW){ CONFIG.PERF.dprMax=1.2; CONFIG.PERF.maxParticles=120; }
 
   /* ====================== Utils ======================= */
   const $ = sel => document.querySelector(sel);
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const now = ()=>performance.now();
-
-  function vibrate(pattern){try{navigator.vibrate && navigator.vibrate(pattern);}catch(_){}} // no-op on desktop
+  function vibrate(p){try{navigator.vibrate && navigator.vibrate(p);}catch(_){}} 
 
   function getDeviceId(){
     const k='hrfz_device_id'; let id=localStorage.getItem(k);
     if(!id){ id=crypto.getRandomValues(new Uint32Array(4)).join('-'); localStorage.setItem(k,id); }
     return id;
   }
-
   function mulberry32(a){ return function(){ var t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
 
-  // fit canvas (CSS) + retina scale (internal)
   const BASE_W = 360, BASE_H = 640;
   function fitCanvas(canvas){
     const parent=canvas.parentElement; const ratio=BASE_W/BASE_H;
     const w=parent.clientWidth, h=parent.clientHeight; let cw=w, ch=w/ratio;
     if (ch>h) { ch=h; cw=h*ratio; }
     canvas.style.width=cw+'px'; canvas.style.height=ch+'px';
-    const dpr = Math.min(2, window.devicePixelRatio||1);
+    const dpr = Math.min(CONFIG.PERF.dprMax, window.devicePixelRatio||1);
     canvas.width = Math.round(BASE_W*dpr);
     canvas.height = Math.round(BASE_H*dpr);
     const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
   }
 
-  // Daily seed from UTC date (same worldwide; xored by device shard)
   function dailySeed(){
     const d = new Date(); const s = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())>>>0;
     return s ^ (getDeviceId().split('-')[0]>>>0);
   }
 
-  /* ====================== WebAudio SFX (no assets) ===== */
+  /* ====================== WebAudio SFX ================= */
   const AudioKit = (function(){
     let ctx, master;
     function ensure(){
@@ -180,8 +181,7 @@
     function tone(opt){
       const c=ensure(); if(!c) return;
       const o=c.createOscillator(), g=c.createGain();
-      o.type = opt.type||'sine';
-      o.frequency.value = opt.freq||440;
+      o.type = opt.type||'sine'; o.frequency.value = opt.freq||440;
       if (opt.detune) o.detune.value = opt.detune;
       g.gain.value = 0; o.connect(g); g.connect(master);
       const t=c.currentTime, a=opt.attack||0.005, d=opt.decay||0.12, s=opt.sustain||0.0001, r=opt.release||0.08, v=opt.gain||0.4;
@@ -193,16 +193,15 @@
     }
     function noise(opt){
       const c=ensure(); if(!c) return;
-      const b=c.createBuffer(1, c.sampleRate*0.2, c.sampleRate);
-      const data=b.getChannelData(0); for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)* (opt.color==='pink'? (1/(i+1)):1);
+      const b=c.createBuffer(1, c.sampleRate*0.18, c.sampleRate);
+      const data=b.getChannelData(0); for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1);
       const src=c.createBufferSource(); src.buffer=b;
       const g=c.createGain(); g.gain.value=0; src.connect(g); g.connect(master);
-      const t=c.currentTime, a=opt.attack||0.005, r=opt.release||0.15, v=opt.gain||0.5;
+      const t=c.currentTime, a=opt.attack||0.005, r=opt.release||0.14, v=opt.gain||0.45;
       g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(v,t+a); g.gain.linearRampToValueAtTime(0,t+a+r);
       src.start(t); src.stop(t+a+r+0.01);
     }
     function sfx(name){
-      if (!CONFIG.AUDIO.enabled) return;
       switch(name){
         case 'move': tone({type:'square',freq:640,gain:0.18,decay:0.06,release:0.06}); break;
         case 'near': tone({type:'triangle',freq:880,gain:0.22,decay:0.04}); break;
@@ -215,7 +214,7 @@
     return {unlock,sfx};
   })();
 
-  /* ====================== Backend (optional) ========== */
+  /* ====================== Backend ===================== */
   async function postScore(name, score) {
     if (!CONFIG.API_URL) return;
     try {
@@ -227,19 +226,18 @@
         ua: navigator.userAgent
       });
       await fetch(CONFIG.API_URL, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' }, // tránh preflight
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
         body,
-        signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
+        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined
       }).catch(()=>{});
-    } catch (e) { /* ignore */ }
+    } catch (_){}
   }
 
   /* ====================== Game State =================== */
   const canvas = $('#game'); const ctx = canvas.getContext('2d');
   fitCanvas(canvas); window.addEventListener('resize', ()=>fitCanvas(canvas));
-  const gcv = $('#gcv'); const gctx = gcv.getContext('2d'); // gauge
+  const gcv = $('#gcv'); const gctx = gcv.getContext('2d');
 
   let W=BASE_W, H=BASE_H;
   const state = {
@@ -250,22 +248,21 @@
     lastSpawn: 0, spawnEvery: CONFIG.GAME.spawnEvery,
     lane:1, targetLane:1,
     playerY: H-120,
-    entities: [], // {type:'ob'|'orb', lane:int, y:number}
-    lastTime: 0,
-    energy: 60, // onboarding
+    entities: [],                 // {type:'ob'|'orb', lane:int, y:number}
+    energy: 60,
     holding:false,
     lastNearT: 0,
-    // tween đổi làn
     laneFrom: 1, laneTo: 1, laneT: 1, pendingDir: 0,
-    // juice
     shake: 0,
     particles: [],
-    // “Cửa hẹp”
     surgeMs: 0, nextSurge: CONFIG.GAME.surgeEvery
   };
 
   /* ====================== Particles ==================== */
   function spawnParticles(x,y,color,count=12,spd=1){
+    // hạn chế tổng số hạt
+    const allow = Math.max(0, CONFIG.PERF.maxParticles - state.particles.length);
+    count = Math.min(count, allow);
     for(let i=0;i<count;i++){
       const a = Math.random()*Math.PI*2;
       state.particles.push({
@@ -284,7 +281,6 @@
     AudioKit.sfx('move');
   }
 
-  // Keyboard
   window.addEventListener('keydown', (e)=>{
     const k = e.key.toLowerCase();
     if (k==='arrowleft'||k==='a') switchLane(-1);
@@ -293,7 +289,6 @@
   }, {passive:true});
   window.addEventListener('keyup', (e)=>{ if (e.key===' ') state.holding=false; }, {passive:true});
 
-  // Pointer (mobile + desktop)
   let pointerId=null, startX=0;
   canvas.addEventListener('pointerdown', (e)=>{
     if (pointerId!==null) return;
@@ -318,7 +313,6 @@
   }
   canvas.addEventListener('pointerup', endPointer, {passive:false});
   canvas.addEventListener('pointercancel', endPointer, {passive:false});
-  canvas.addEventListener('lostpointercapture', ()=>{ state.holding=false; }, {passive:true});
   document.addEventListener('visibilitychange', ()=>{ if (document.hidden) state.holding=false; }, {passive:true});
 
   /* ====================== Loop ======================== */
@@ -327,8 +321,9 @@
     const dtEff = dt * timeScale;
 
     // energy
-    if (state.holding && state.energy>0) state.energy = Math.max(0, state.energy - CONFIG.GAME.freezeRate * (dt/10));
-    else state.energy = Math.min(100, state.energy + CONFIG.GAME.regenPassive * (dt/10));
+    state.energy = state.holding && state.energy>0
+      ? Math.max(0, state.energy - CONFIG.GAME.freezeRate * (dt/10))
+      : Math.min(100, state.energy + CONFIG.GAME.regenPassive * (dt/10));
 
     // difficulty & score
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
@@ -344,12 +339,11 @@
     if (state.surgeMs>0) state.surgeMs = Math.max(0, state.surgeMs - dt);
 
     // tween lane
-    if (CONFIG.GAME.laneMoveMs <= 0) {
-      state.lane = state.laneTo;
-    } else {
+    if (CONFIG.GAME.laneMoveMs <= 0) state.lane = state.laneTo;
+    else {
       if (state.laneT < 1) {
         state.laneT = Math.min(1, state.laneT + dtEff / CONFIG.GAME.laneMoveMs);
-        const t = state.laneT, e = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        const t = state.laneT, e = 1 - Math.pow(1 - t, 3);
         state.lane = state.laneFrom + (state.laneTo - state.laneFrom) * e;
       } else if (state.pendingDir) {
         const d = state.pendingDir; state.pendingDir = 0;
@@ -358,7 +352,7 @@
       }
     }
 
-    // spawn (giữ khoảng cách tối thiểu theo làn; surge = spawn 2 lần/ tick)
+    // spawn – giới hạn số lượng để không lag
     state.lastSpawn += dtEff;
     while (state.lastSpawn >= state.spawnEvery) {
       state.lastSpawn -= state.spawnEvery;
@@ -382,17 +376,16 @@
         }
       }
 
-      // collect / collide
       if (Math.abs(laneX(e.lane)-px) < 36 && Math.abs(e.y - py) < 36) {
         if (e.type==='orb') {
           state.score += 50;
           state.energy = Math.min(100, state.energy + CONFIG.GAME.regenOrb);
           state.entities.splice(i,1);
-          flash(120); spawnParticles(px,py,'#38bdf8',14,1.2);
-          AudioKit.sfx('orb'); vibrate(14);
+          flash(120); spawnParticles(px,py,'#38bdf8',12,1.1);
+          AudioKit.sfx('orb'); vibrate(12);
         } else {
           if (state.score > state.best) { state.best = Math.floor(state.score); localStorage.setItem('hrfz_best', state.best); }
-          boom(); spawnParticles(px,py,'#e11d48',24,1.8);
+          boom(); spawnParticles(px,py,'#e11d48',22,1.6);
           AudioKit.sfx('hit'); vibrate([50,40,80]);
           return gameOver();
         }
@@ -403,15 +396,15 @@
     // update particles
     for (let i=state.particles.length-1;i>=0;i--){
       const p=state.particles[i]; p.age += dtEff; if (p.age>p.life){ state.particles.splice(i,1); continue; }
-      p.x += p.vx * dtEff/16.6; p.y += p.vy * dtEff/16.6; p.vy += 0.002*dtEff; // nhẹ nhàng rơi
+      p.x += p.vx * dtEff/16.6; p.y += p.vy * dtEff/16.6; p.vy += 0.002*dtEff;
     }
 
     // shake decay
     state.shake *= 0.92;
   }
 
-  // spawn helper with gap rules
   function trySpawn(){
+    if (state.entities.length >= CONFIG.PERF.maxEntities) return; // khống chế số lượng
     const type = (state.rng() < CONFIG.GAME.orbChance) ? 'orb' : 'ob';
     let lane = Math.floor(state.rng()*CONFIG.GAME.lanes);
     let tries = 0;
@@ -421,17 +414,14 @@
         const e = state.entities[i];
         if (e.lane === lane) { lastY = e.y; break; }
       }
-      const need = (type === 'ob' ? (CONFIG.GAME.minGapObPx||140) : (CONFIG.GAME.minGapOrbPx||110));
+      const need = (type === 'ob' ? CONFIG.GAME.minGapObPx : CONFIG.GAME.minGapOrbPx);
       if (lastY === null || (lastY + 40) >= need) { state.entities.push({ type, lane, y: -40 }); return; }
       lane = (lane + 1) % CONFIG.GAME.lanes;
-    } while (++tries < (CONFIG.GAME.maxSpawnAttempts||3));
-    // bỏ lượt nếu không đủ gap
+    } while (++tries < CONFIG.GAME.maxSpawnAttempts);
   }
 
   function draw() {
     ctx.clearRect(0,0,W,H);
-
-    // camera shake
     ctx.save();
     if (state.shake>0){ ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake); }
 
@@ -439,7 +429,6 @@
     for (const e of state.entities) (e.type==='ob') ? drawObstacle(laneX(e.lane), e.y) : drawOrb(laneX(e.lane), e.y);
     drawPlayer(laneX(state.lane), state.playerY);
 
-    // particles
     for (const p of state.particles){
       const k = 1 - (p.age/p.life);
       ctx.globalAlpha = Math.max(0, k);
@@ -447,7 +436,6 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, 2+k*2, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1;
     }
-
     ctx.restore();
     drawGauge();
   }
@@ -460,24 +448,21 @@
     draw(); requestAnimationFrame(loop);
   }
 
-  /* ================== Rendering helpers ================= */
   function laneX(lane){
     const margin=40; const roadW=W - margin*2; const laneW = roadW/CONFIG.GAME.lanes;
     return Math.round(margin + laneW*(0.5 + lane));
   }
-
   function drawRoad(){
     const margin=40; const roadW=W - margin*2;
     ctx.save();
     ctx.strokeStyle = 'rgba(148,163,184,0.15)'; ctx.lineWidth=2;
     for (let i=1;i<CONFIG.GAME.lanes;i++){ const x=margin+roadW/CONFIG.GAME.lanes*i; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    const mult = state.surgeMs>0 ? 1.7 : 1; // surge làm line chạy nhanh
+    const mult = state.surgeMs>0 ? 1.7 : 1;
     const offset = ((performance.now() * (state.holding && state.energy>0 ? 0.25 : 1)*mult)/20) % 40;
     ctx.strokeStyle='rgba(14,165,233,0.25)'; ctx.lineWidth=4;
     for (let y=-offset; y<H; y+=40){ ctx.beginPath(); ctx.moveTo(margin+8,y); ctx.lineTo(W-margin-8,y); ctx.stroke(); }
     ctx.restore();
   }
-
   function drawPlayer(x,y){
     ctx.save(); ctx.translate(x,y);
     ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0,18,20,8,0,0,Math.PI*2); ctx.fill();
@@ -487,8 +472,6 @@
     ctx.fillStyle='rgba(255,255,255,.9)'; ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(0,-8); ctx.lineTo(8,0); ctx.lineTo(0,8); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
-
-  // Obstacle: đỏ trầm + viền gọn, KHÔNG xoay
   function drawObstacle(x,y){
     ctx.save(); ctx.translate(x,y);
     ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,16,16,6,0,0,Math.PI*2); ctx.fill();
@@ -499,17 +482,15 @@
     ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-14,-12); ctx.lineTo(14,-12); ctx.stroke();
     ctx.restore();
   }
-
   function drawOrb(x,y){
     ctx.save(); ctx.translate(x,y);
     const r=10+Math.sin(performance.now()/120 + x)*2;
     const g=ctx.createRadialGradient(0,0,2,0,0,r);
     g.addColorStop(0,'rgba(255,255,255,0.85)');
-    g.addColorStop(1,'rgba(56,189,248,0.9)'); // #38bdf8
+    g.addColorStop(1,'rgba(56,189,248,0.9)');
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-
   function roundRect(x,y,w,h,r,fill,stroke){
     ctx.beginPath();
     ctx.moveTo(x+r,y);
@@ -526,25 +507,22 @@
   function boom(){ boomT=now()+250; state.shake = 10; }
   const origFill = ctx.fillStyle;
   const _draw = draw; draw = function(){ _draw(); postFX(); };
-
   function postFX(){
     const t=now();
     if (flashT>t){ ctx.fillStyle='rgba(255,255,255,.2)'; ctx.fillRect(0,0,W,H); ctx.fillStyle=origFill; }
     if (boomT>t){ const k=(boomT-t)/250; ctx.save(); ctx.translate(W/2,H/2); ctx.rotate((1-k)*0.4); ctx.scale(1+(1-k)*0.05,1+(1-k)*0.05); ctx.restore(); }
   }
-
   function drawGauge(){
     const pct = clamp(state.energy,0,100)/100;
     const c=gctx; const w=gcv.width, h=gcv.height; c.clearRect(0,0,w,h);
     c.save(); c.translate(w/2,h/2);
-    c.strokeStyle='rgba(148,163,184,.2)'; c.lineWidth=12; c.beginPath(); c.arc(0,0,38,0,Math.PI*2); c.stroke();
+    c.strokeStyle='rgba(148,163,184,.22)'; c.lineWidth=10; c.beginPath(); c.arc(0,0,26,0,Math.PI*2); c.stroke();
     const end = -Math.PI/2 + pct*2*Math.PI;
-    const grad = c.createLinearGradient(-40,-40,40,40); grad.addColorStop(0,'#22d3ee'); grad.addColorStop(1,'#0ea5e9');
-    c.strokeStyle = grad; c.lineWidth=12; c.lineCap='round'; c.beginPath(); c.arc(0,0,38,-Math.PI/2, end); c.stroke();
-    c.fillStyle='rgba(255,255,255,.9)'; c.beginPath(); c.moveTo(-6,0); c.lineTo(0,-6); c.lineTo(6,0); c.lineTo(0,6); c.closePath(); c.fill();
+    const grad = c.createLinearGradient(-30,-30,30,30); grad.addColorStop(0,'#22d3ee'); grad.addColorStop(1,'#0ea5e9');
+    c.strokeStyle = grad; c.lineWidth=10; c.lineCap='round'; c.beginPath(); c.arc(0,0,26,-Math.PI/2, end); c.stroke();
+    c.fillStyle='rgba(255,255,255,.9)'; c.beginPath(); c.moveTo(-5,0); c.lineTo(0,-5); c.lineTo(5,0); c.lineTo(0,5); c.closePath(); c.fill();
     c.restore();
   }
-
   function toast(txt){
     const el=$('#toast'); el.textContent=txt; el.classList.add('show');
     clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),760);
@@ -556,31 +534,21 @@
     $('#uiHUD').hidden=true; $('#uiOver').hidden=false; $('#touchCtrl').hidden=true;
     $('#finalScore').textContent = Math.floor(state.score);
     $('#best2').textContent = state.best;
-
-    // “chọc tức” có văn minh 🙂
     const s = Math.floor(state.score);
-    const next = Math.ceil(s/100)*100;
-    const diff = next - s;
-    const msg = (s>0 && diff>0 && diff<=12)
-      ? `Thiếu ${diff} điểm nữa là chạm ${next}!`
+    const next = Math.ceil(s/100)*100; const diff = next - s;
+    $('#overMsg').textContent = (s>0 && diff>0 && diff<=12) ? `Thiếu ${diff} điểm nữa là chạm ${next}!`
       : (s>state.best ? 'Kỷ lục mới! Lần sau vượt 2.500 nhé.' : 'Gần thôi, thêm chút “sượt nhẹ” là qua!');
-    $('#overMsg').textContent = msg;
-
     postScore(state.name, state.score);
   }
-
   function resetGame(){
     state.running=true; state.over=false;
     state.score=0; state.speed=CONFIG.GAME.baseSpeed;
     state.lastSpawn=0; state.spawnEvery=CONFIG.GAME.spawnEvery;
-    state.lane=1; state.targetLane=1;
-    state.entities.length=0; state.particles.length=0;
-    state.lastTime=now(); state.energy = 60;
-    state.shake = 0; state.surgeMs=0; state.nextSurge=CONFIG.GAME.surgeEvery;
+    state.lane=1; state.entities.length=0; state.particles.length=0;
+    state.energy = 60; state.shake = 0; state.surgeMs=0; state.nextSurge=CONFIG.GAME.surgeEvery;
     $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true; $('#touchCtrl').hidden=false;
     $('#score').textContent='0'; $('#best').textContent=String(state.best);
   }
-
   function startFromUI(){
     state.name = $('#name').value.trim().slice(0,16);
     resetGame(); loop();
@@ -597,14 +565,11 @@
   });
   $('#btnL').addEventListener('click', ()=>switchLane(-1));
   $('#btnR').addEventListener('click', ()=>switchLane(1));
-
   $('#best').textContent = String(state.best);
 
-  // autoplay support: ?autoplay=1
   const ps = new URLSearchParams(location.search);
   if (ps.get('autoplay')==='1'){ setTimeout(startFromUI, 300); }
 
-  // PWA
   if ('serviceWorker' in navigator) { window.addEventListener('load', ()=>navigator.serviceWorker.register('./sw.js').catch(()=>{})); }
   new ResizeObserver(()=>fitCanvas(canvas)).observe($('#wrap'));
 })();</script>
