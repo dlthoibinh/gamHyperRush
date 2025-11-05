@@ -32,7 +32,7 @@
     /* Freeze gauge */
     #gauge{position:absolute;right:10px;bottom:10px;width:84px;height:84px;border-radius:999px;background:rgba(2,6,23,.5);border:1px solid rgba(148,163,184,.15);display:flex;align-items:center;justify-content:center}
     #gauge canvas{width:72px;height:72px}
-    #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:6px 10px;background:rgba(250,250,250,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;opacity:0;transition:opacity .2s, transform .2s}
+    #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:6px 10px;background:rgba(250,250,250,.12);border:1px solid rgba(255,255,255,.2);border-radius:999px;font-size:12px;opacity:0;transition:opacity .18s, transform .18s}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
 
     /* Force-hide any [hidden] */
@@ -86,7 +86,7 @@
           <button id="btnRetry">Chơi lại</button>
           <button id="btnShare">Chia sẻ</button>
         </div>
-        <div class="hint mt8">Tip: Tạo “sượt nhẹ” để nạp freeze nhanh hơn.</div>
+        <div id="overMsg" class="hint mt8"></div>
       </div>
     </div>
 
@@ -109,6 +109,7 @@
   /* ====================== Config ====================== */
   const CONFIG = {
     API_URL: 'https://script.google.com/macros/s/AKfycbznfw8rrffCKv0OObRRc8j6YHKir6dEwpLrG4eNn-Azc3xvg4_UrI3fbUoBRv6Dq-e1DQ/exec', // optional leaderboard
+    AUDIO: { enabled: true, volume: 0.35 },
     GAME: {
       lanes: 3,
       baseSpeed: 135,
@@ -124,7 +125,9 @@
       laneMoveMs: 110,     // tween 1 bước/1 lần
       minGapObPx: 140,     // khoảng cách tối thiểu theo làn cho obstacle
       minGapOrbPx: 110,
-      maxSpawnAttempts: 3
+      maxSpawnAttempts: 3,
+      surgeEvery: 300,     // mỗi 300 điểm → 3s “Cửa hẹp”
+      surgeMs: 3000
     }
   };
 
@@ -132,6 +135,8 @@
   const $ = sel => document.querySelector(sel);
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const now = ()=>performance.now();
+
+  function vibrate(pattern){try{navigator.vibrate && navigator.vibrate(pattern);}catch(_){}} // no-op on desktop
 
   function getDeviceId(){
     const k='hrfz_device_id'; let id=localStorage.getItem(k);
@@ -160,6 +165,56 @@
     return s ^ (getDeviceId().split('-')[0]>>>0);
   }
 
+  /* ====================== WebAudio SFX (no assets) ===== */
+  const AudioKit = (function(){
+    let ctx, master;
+    function ensure(){
+      if (!CONFIG.AUDIO.enabled) return null;
+      if (!ctx){
+        ctx = new (window.AudioContext||window.webkitAudioContext)();
+        master = ctx.createGain(); master.gain.value = CONFIG.AUDIO.volume; master.connect(ctx.destination);
+      }
+      return ctx;
+    }
+    function unlock(){ const c=ensure(); if (!c) return; if (c.state==='suspended') c.resume().catch(()=>{}); }
+    function tone(opt){
+      const c=ensure(); if(!c) return;
+      const o=c.createOscillator(), g=c.createGain();
+      o.type = opt.type||'sine';
+      o.frequency.value = opt.freq||440;
+      if (opt.detune) o.detune.value = opt.detune;
+      g.gain.value = 0; o.connect(g); g.connect(master);
+      const t=c.currentTime, a=opt.attack||0.005, d=opt.decay||0.12, s=opt.sustain||0.0001, r=opt.release||0.08, v=opt.gain||0.4;
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(v,t+a);
+      g.gain.linearRampToValueAtTime(s,t+a+d);
+      g.gain.linearRampToValueAtTime(0,t+a+d+r);
+      o.start(t); o.stop(t+a+d+r+0.01);
+    }
+    function noise(opt){
+      const c=ensure(); if(!c) return;
+      const b=c.createBuffer(1, c.sampleRate*0.2, c.sampleRate);
+      const data=b.getChannelData(0); for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)* (opt.color==='pink'? (1/(i+1)):1);
+      const src=c.createBufferSource(); src.buffer=b;
+      const g=c.createGain(); g.gain.value=0; src.connect(g); g.connect(master);
+      const t=c.currentTime, a=opt.attack||0.005, r=opt.release||0.15, v=opt.gain||0.5;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(v,t+a); g.gain.linearRampToValueAtTime(0,t+a+r);
+      src.start(t); src.stop(t+a+r+0.01);
+    }
+    function sfx(name){
+      if (!CONFIG.AUDIO.enabled) return;
+      switch(name){
+        case 'move': tone({type:'square',freq:640,gain:0.18,decay:0.06,release:0.06}); break;
+        case 'near': tone({type:'triangle',freq:880,gain:0.22,decay:0.04}); break;
+        case 'orb':  tone({type:'sine',freq:520,gain:0.26,decay:0.05}); tone({type:'sine',freq:780,gain:0.20,decay:0.07}); break;
+        case 'freeze_on': tone({type:'sawtooth',freq:300,gain:0.18,decay:0.08}); break;
+        case 'hit':  noise({gain:0.6}); tone({type:'square',freq:140,gain:0.25,decay:0.09,release:0.2}); break;
+        case 'taunt': tone({type:'triangle',freq:480,gain:0.16,decay:0.12}); break;
+      }
+    }
+    return {unlock,sfx};
+  })();
+
   /* ====================== Backend (optional) ========== */
   async function postScore(name, score) {
     if (!CONFIG.API_URL) return;
@@ -171,15 +226,14 @@
         tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
         ua: navigator.userAgent
       });
-      // text/plain => tránh preflight OPTIONS 405 của GAS
       await fetch(CONFIG.API_URL, {
         method: 'POST',
         mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 'Content-Type': 'text/plain' }, // tránh preflight
         body,
         signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
       }).catch(()=>{});
-    } catch (e) { console.warn('postScore', e); }
+    } catch (e) { /* ignore */ }
   }
 
   /* ====================== Game State =================== */
@@ -202,20 +256,32 @@
     holding:false,
     lastNearT: 0,
     // tween đổi làn
-    laneFrom: 1,
-    laneTo: 1,
-    laneT: 1,          // 1 = xong tween; 0->1 = đang di chuyển
-    pendingDir: 0
+    laneFrom: 1, laneTo: 1, laneT: 1, pendingDir: 0,
+    // juice
+    shake: 0,
+    particles: [],
+    // “Cửa hẹp”
+    surgeMs: 0, nextSurge: CONFIG.GAME.surgeEvery
   };
+
+  /* ====================== Particles ==================== */
+  function spawnParticles(x,y,color,count=12,spd=1){
+    for(let i=0;i<count;i++){
+      const a = Math.random()*Math.PI*2;
+      state.particles.push({
+        x,y, vx: Math.cos(a)*(1.2+Math.random()*2)*spd, vy: Math.sin(a)*(1.2+Math.random()*2)*spd,
+        life: 420+Math.random()*260, age:0, color
+      });
+    }
+  }
 
   /* ====================== Input ======================= */
   function switchLane(dir){
     if (state.laneT < 1) { state.pendingDir = Math.sign(dir); return; }
     const next = clamp(state.laneTo + Math.sign(dir), 0, CONFIG.GAME.lanes - 1);
     if (next === state.laneTo) return;
-    state.laneFrom = state.laneTo;
-    state.laneTo   = next;
-    state.laneT    = 0;
+    state.laneFrom = state.laneTo; state.laneTo = next; state.laneT = 0;
+    AudioKit.sfx('move');
   }
 
   // Keyboard
@@ -223,7 +289,7 @@
     const k = e.key.toLowerCase();
     if (k==='arrowleft'||k==='a') switchLane(-1);
     if (k==='arrowright'||k==='d') switchLane(1);
-    if (k===' ') state.holding = true;
+    if (k===' ') { state.holding = true; AudioKit.sfx('freeze_on'); }
   }, {passive:true});
   window.addEventListener('keyup', (e)=>{ if (e.key===' ') state.holding=false; }, {passive:true});
 
@@ -232,7 +298,7 @@
   canvas.addEventListener('pointerdown', (e)=>{
     if (pointerId!==null) return;
     pointerId=e.pointerId; canvas.setPointerCapture(pointerId);
-    startX=e.clientX; state.holding=true;
+    startX=e.clientX; state.holding=true; AudioKit.unlock(); AudioKit.sfx('freeze_on');
     if (e.cancelable) e.preventDefault();
   }, {passive:false});
   canvas.addEventListener('pointermove', (e)=>{
@@ -270,6 +336,13 @@
     state.score += dtEff * 0.06 * ( (state.lastNearT && (now()-state.lastNearT<1200)) ? 1.15 : 1 );
     $('#score').textContent = String(Math.floor(state.score));
 
+    // surge trigger
+    if (state.score >= state.nextSurge){
+      state.surgeMs = CONFIG.GAME.surgeMs; state.nextSurge += CONFIG.GAME.surgeEvery;
+      toast('Cửa hẹp 3s!'); AudioKit.sfx('taunt');
+    }
+    if (state.surgeMs>0) state.surgeMs = Math.max(0, state.surgeMs - dt);
+
     // tween lane
     if (CONFIG.GAME.laneMoveMs <= 0) {
       state.lane = state.laneTo;
@@ -285,29 +358,12 @@
       }
     }
 
-    // spawn (giữ khoảng cách tối thiểu theo làn)
+    // spawn (giữ khoảng cách tối thiểu theo làn; surge = spawn 2 lần/ tick)
     state.lastSpawn += dtEff;
     while (state.lastSpawn >= state.spawnEvery) {
       state.lastSpawn -= state.spawnEvery;
-
-      const type = (state.rng() < CONFIG.GAME.orbChance) ? 'orb' : 'ob';
-      let lane = Math.floor(state.rng()*CONFIG.GAME.lanes);
-      let ok = false, tries = 0;
-
-      do {
-        let lastY = null;
-        for (let i = state.entities.length - 1; i >= 0; i--) {
-          const e = state.entities[i];
-          if (e.lane === lane) { lastY = e.y; break; }
-        }
-        const need = (type === 'ob' ? (CONFIG.GAME.minGapObPx||140) : (CONFIG.GAME.minGapOrbPx||110));
-        if (lastY === null || (lastY + 40) >= need) { // -40 spawn y
-          state.entities.push({ type, lane, y: -40 });
-          ok = true; break;
-        }
-        lane = (lane + 1) % CONFIG.GAME.lanes;
-      } while (++tries < (CONFIG.GAME.maxSpawnAttempts||3));
-      // nếu chưa đủ gap ở cả 3 làn → bỏ lượt spawn
+      const times = 1 + (state.surgeMs>0 ? 1 : 0);
+      for (let t=0; t<times; t++) trySpawn();
     }
 
     // move + collisions
@@ -322,6 +378,7 @@
           state.energy = Math.min(100, state.energy + CONFIG.GAME.regenNear);
           toast('NEAR-MISS +' + CONFIG.GAME.regenNear + '%');
           state.lastNearT = now();
+          AudioKit.sfx('near'); vibrate(10);
         }
       }
 
@@ -330,21 +387,68 @@
         if (e.type==='orb') {
           state.score += 50;
           state.energy = Math.min(100, state.energy + CONFIG.GAME.regenOrb);
-          state.entities.splice(i,1); flash(120);
+          state.entities.splice(i,1);
+          flash(120); spawnParticles(px,py,'#38bdf8',14,1.2);
+          AudioKit.sfx('orb'); vibrate(14);
         } else {
           if (state.score > state.best) { state.best = Math.floor(state.score); localStorage.setItem('hrfz_best', state.best); }
-          boom(); return gameOver();
+          boom(); spawnParticles(px,py,'#e11d48',24,1.8);
+          AudioKit.sfx('hit'); vibrate([50,40,80]);
+          return gameOver();
         }
       }
       if (e.y > H+50) state.entities.splice(i,1);
     }
+
+    // update particles
+    for (let i=state.particles.length-1;i>=0;i--){
+      const p=state.particles[i]; p.age += dtEff; if (p.age>p.life){ state.particles.splice(i,1); continue; }
+      p.x += p.vx * dtEff/16.6; p.y += p.vy * dtEff/16.6; p.vy += 0.002*dtEff; // nhẹ nhàng rơi
+    }
+
+    // shake decay
+    state.shake *= 0.92;
+  }
+
+  // spawn helper with gap rules
+  function trySpawn(){
+    const type = (state.rng() < CONFIG.GAME.orbChance) ? 'orb' : 'ob';
+    let lane = Math.floor(state.rng()*CONFIG.GAME.lanes);
+    let tries = 0;
+    do {
+      let lastY = null;
+      for (let i = state.entities.length - 1; i >= 0; i--) {
+        const e = state.entities[i];
+        if (e.lane === lane) { lastY = e.y; break; }
+      }
+      const need = (type === 'ob' ? (CONFIG.GAME.minGapObPx||140) : (CONFIG.GAME.minGapOrbPx||110));
+      if (lastY === null || (lastY + 40) >= need) { state.entities.push({ type, lane, y: -40 }); return; }
+      lane = (lane + 1) % CONFIG.GAME.lanes;
+    } while (++tries < (CONFIG.GAME.maxSpawnAttempts||3));
+    // bỏ lượt nếu không đủ gap
   }
 
   function draw() {
     ctx.clearRect(0,0,W,H);
+
+    // camera shake
+    ctx.save();
+    if (state.shake>0){ ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake); }
+
     drawRoad();
     for (const e of state.entities) (e.type==='ob') ? drawObstacle(laneX(e.lane), e.y) : drawOrb(laneX(e.lane), e.y);
     drawPlayer(laneX(state.lane), state.playerY);
+
+    // particles
+    for (const p of state.particles){
+      const k = 1 - (p.age/p.life);
+      ctx.globalAlpha = Math.max(0, k);
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2+k*2, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
     drawGauge();
   }
 
@@ -367,7 +471,8 @@
     ctx.save();
     ctx.strokeStyle = 'rgba(148,163,184,0.15)'; ctx.lineWidth=2;
     for (let i=1;i<CONFIG.GAME.lanes;i++){ const x=margin+roadW/CONFIG.GAME.lanes*i; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    const offset = ((performance.now() * (state.holding && state.energy>0 ? 0.25 : 1))/20) % 40;
+    const mult = state.surgeMs>0 ? 1.7 : 1; // surge làm line chạy nhanh
+    const offset = ((performance.now() * (state.holding && state.energy>0 ? 0.25 : 1)*mult)/20) % 40;
     ctx.strokeStyle='rgba(14,165,233,0.25)'; ctx.lineWidth=4;
     for (let y=-offset; y<H; y+=40){ ctx.beginPath(); ctx.moveTo(margin+8,y); ctx.lineTo(W-margin-8,y); ctx.stroke(); }
     ctx.restore();
@@ -386,26 +491,12 @@
   // Obstacle: đỏ trầm + viền gọn, KHÔNG xoay
   function drawObstacle(x,y){
     ctx.save(); ctx.translate(x,y);
-
-    // bóng
-    ctx.fillStyle = 'rgba(0,0,0,.28)';
-    ctx.beginPath(); ctx.ellipse(0,16,16,6,0,0,Math.PI*2); ctx.fill();
-
-    // thân
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0,16,16,6,0,0,Math.PI*2); ctx.fill();
     const grd = ctx.createLinearGradient(0,-18,0,18);
-    grd.addColorStop(0,'#c64040');  // đỏ trầm trên
-    grd.addColorStop(1,'#9f2c2c');  // đỏ nâu dưới
-    ctx.fillStyle = grd;
-    roundRect(-18,-18,36,36,8,true,false);
-
-    // viền
-    ctx.strokeStyle='rgba(0,0,0,.40)'; ctx.lineWidth=1.5;
-    roundRect(-18,-18,36,36,8,false,true);
-
-    // highlight mảnh
-    ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(-14,-12); ctx.lineTo(14,-12); ctx.stroke();
-
+    grd.addColorStop(0,'#c64040');  grd.addColorStop(1,'#9f2c2c');
+    ctx.fillStyle = grd; roundRect(-18,-18,36,36,8,true,false);
+    ctx.strokeStyle='rgba(0,0,0,.40)'; ctx.lineWidth=1.5; roundRect(-18,-18,36,36,8,false,true);
+    ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-14,-12); ctx.lineTo(14,-12); ctx.stroke();
     ctx.restore();
   }
 
@@ -432,7 +523,7 @@
   /* =============== FX / Gauge / Toast ================== */
   let flashT=0, boomT=0;
   function flash(ms){ flashT=now()+ms; }
-  function boom(){ boomT=now()+250; }
+  function boom(){ boomT=now()+250; state.shake = 10; }
   const origFill = ctx.fillStyle;
   const _draw = draw; draw = function(){ _draw(); postFX(); };
 
@@ -456,28 +547,38 @@
 
   function toast(txt){
     const el=$('#toast'); el.textContent=txt; el.classList.add('show');
-    clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),700);
+    clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'),760);
   }
 
   /* ====================== UI =========================== */
-  function resetGame(){
-    state.running=true; state.over=false;
-    state.score=0; state.speed=CONFIG.GAME.baseSpeed;
-    state.lastSpawn=0; state.spawnEvery=CONFIG.GAME.spawnEvery;
-    state.lane=1; state.targetLane=1;
-    state.entities.length=0; state.lastTime=now();
-    state.energy = 60;
-    $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true;
-    $('#touchCtrl').hidden=false;
-    $('#score').textContent='0'; $('#best').textContent=String(state.best);
-  }
-
   function gameOver(){
     state.running=false; state.over=true;
     $('#uiHUD').hidden=true; $('#uiOver').hidden=false; $('#touchCtrl').hidden=true;
     $('#finalScore').textContent = Math.floor(state.score);
     $('#best2').textContent = state.best;
+
+    // “chọc tức” có văn minh 🙂
+    const s = Math.floor(state.score);
+    const next = Math.ceil(s/100)*100;
+    const diff = next - s;
+    const msg = (s>0 && diff>0 && diff<=12)
+      ? `Thiếu ${diff} điểm nữa là chạm ${next}!`
+      : (s>state.best ? 'Kỷ lục mới! Lần sau vượt 2.500 nhé.' : 'Gần thôi, thêm chút “sượt nhẹ” là qua!');
+    $('#overMsg').textContent = msg;
+
     postScore(state.name, state.score);
+  }
+
+  function resetGame(){
+    state.running=true; state.over=false;
+    state.score=0; state.speed=CONFIG.GAME.baseSpeed;
+    state.lastSpawn=0; state.spawnEvery=CONFIG.GAME.spawnEvery;
+    state.lane=1; state.targetLane=1;
+    state.entities.length=0; state.particles.length=0;
+    state.lastTime=now(); state.energy = 60;
+    state.shake = 0; state.surgeMs=0; state.nextSurge=CONFIG.GAME.surgeEvery;
+    $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true; $('#touchCtrl').hidden=false;
+    $('#score').textContent='0'; $('#best').textContent=String(state.best);
   }
 
   function startFromUI(){
