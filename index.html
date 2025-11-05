@@ -528,6 +528,40 @@
       }
       if (e.y > H+50) state.entities.splice(i,1);
     }
+    // ---- Anti "đi giữa 2 cột" exploit ----
+    if (state.grace <= 0) {
+      const frac = state.lane - Math.floor(state.lane);    // phần thập phân vị trí làn
+      // chỉ kích hoạt khi thật sự đứng giữa 2 làn (ví dụ giữa làn 1 và 2)
+      if (frac > 0.35 && frac < 0.65) {
+        const laneLeft = Math.floor(state.lane);
+        const laneRight = laneLeft + 1;
+        const pxMid = laneX(state.lane), py = state.playerY;
+    
+        let blockL = false, blockR = false;
+        // tìm xem ở cùng dải Y có vật cản ở cả 2 làn kề nhau không
+        for (let i = state.entities.length - 1; i >= 0; i--) {
+          const e = state.entities[i];
+          if (e.type !== 'ob') continue;
+          const dy = Math.abs(e.y - py);
+          if (dy < 34) {                 // dải chồng theo trục dọc tương đương hitbox hiện tại
+            if (e.lane === laneLeft)  blockL = true;
+            if (e.lane === laneRight) blockR = true;
+            if (blockL && blockR) break;
+          }
+        }
+        // nếu cả hai làn đều bị chặn ở cùng dải Y → va chạm dù đang ở giữa
+        if (blockL && blockR) {
+          if (state.score > state.best) {
+            state.best = Math.floor(state.score);
+            localStorage.setItem('hrfz_best', state.best);
+          }
+          boom(); spawnParticles(pxMid, py, '#e11d48', 22, 1.6);
+          AudioKit.sfx('hit'); vibrate([50,40,80]);
+          return gameOver();
+        }
+      }
+    }
+    // ---- end anti-exploit ----
 
     // Particles
     const pf = state.lowSpec ? 0.7 : 1;
