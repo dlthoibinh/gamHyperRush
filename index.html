@@ -226,7 +226,7 @@
       minSpawnEvery: 220, maxSpawnsPerFrame: 6,
       orbChance: 0.22, freezeRate: 0.28, regenPassive: 0.003,
       regenNear: 6, regenOrb: 10, freezeSlow: 0.25,
-      minGapObPx: 148, minGapOrbPx: 118, maxSpawnAttempts: 3,
+      minGapObPx: 148, minGapOrbPx: 118, minGapMixPx: 130, maxSpawnAttempts: 3,
       surgeEvery: 300, surgeMs: 3000, graceMs: 1500
     }
   };
@@ -306,6 +306,25 @@
   }
 
   /* ====== Spawn table động ====== */
+  // ✨ Khoảng cách tối thiểu tùy cặp loại
+  function needGapBetween(typeA, typeB){
+    if (typeA === 'ob'  && typeB === 'ob')  return CONFIG.GAME.minGapObPx;
+    if (typeA === 'orb' && typeB === 'orb') return CONFIG.GAME.minGapOrbPx;
+    return CONFIG.GAME.minGapMixPx; // khác loại
+  }
+  
+  // ✨ Lane có đủ khoảng cách để spawn y0 cho 'type' không?
+  function okGapForLane(lane, type, y0){
+    // y tăng theo chiều xuống; spawn ở y0 âm ⇒ y0 phải "trên" đủ xa so với mọi entity cùng làn
+    for (let i = state.entities.length - 1; i >= 0; i--){
+      const e = state.entities[i];
+      if (e.lane !== lane) continue;
+      const need = needGapBetween(type, e.type);
+      if ((y0 - e.y) > -need) return false; // chưa đủ khoảng cách
+    }
+    return true;
+  }
+
   function makeSpawnTable(base, accel, minMs, limit=4096){
     const out=[]; let v=base, i=0;
     while (i<limit && v>minMs){ out.push(v); v*=accel; i++; }
@@ -711,55 +730,40 @@
   
     const early = (state.score < 80);
     const type  = (state.rng() < (early ? 0.4 : CONFIG.GAME.orbChance)) ? 'orb' : 'ob';
-    if (early && type === 'ob') return; // giai đoạn dễ cho người mới
+    if (early && type === 'ob') return; // giai đoạn dễ
   
     let lane  = Math.floor(state.rng() * CONFIG.GAME.lanes);
     let tries = 0;
   
-    // 1) Anti-camping: đứng > campMs thì ưu tiên chặn đúng làn hiện tại (có cooldown)
+    // 1) Anti-camping: đứng > campMs thì ưu tiên chặn làn hiện tại (có cooldown)
     if (type === 'ob'
         && (now() - state.lastLaneChangeT > ANTI.campMs)
-        && (now() - state._antiCampT   > ANTI.campCooldownMs)) {
+        && (now() - state._antiCampT   > ANTI.campCooldownMs)){
       lane = Math.round(state.lane);
       state._antiCampT = now();
       if (DBG) toast('ANTI-CAMP');
     }
   
-    // helper: y cuối cùng của lane + loại
-    const lastYOn = (ln, tp) => {
-      for (let i=state.entities.length-1;i>=0;i--){
-        const e = state.entities[i];
-        if (e.lane===ln && e.type===tp) return e.y;
-      }
-      return null;
-    };
-  
-    // 2) Khoảng cách dọc + 3) Jitter y + 4) Phá "hành lang"
-    const needOb  = CONFIG.GAME.minGapObPx;
-    const needOrb = CONFIG.GAME.minGapOrbPx;
-  
+    // 2) Khoảng cách + 3) Jitter y + 4) Phá "hành lang"
     do {
       const jitter = Math.floor(state.rng() * ANTI.spawnJitter);
-      const y0 = -40 - jitter;                       // vị trí spawn thực sự
-      const need = (type === 'ob' ? needOb : needOrb);
+      const y0 = -40 - jitter;
   
-      // đảm bảo cách đủ xa vật cùng lane & cùng loại (tính theo trục y)
-      const lastY = lastYOn(lane, type);
-      const okGap = (lastY === null) ? true : ((y0 - lastY) <= -need); // y tăng xuống dưới ⇒ new y phải "trên" đủ xa
-  
-      if (okGap) {
-        // phá "hành lang": nếu 2 kín 1 trống gần y0 thì ép sang làn trống
-        if (type === 'ob') {
+      // đủ khoảng cách với TẤT CẢ entity khác cùng làn (kể cả khác loại)
+      if (okGapForLane(lane, type, y0)){
+        // phá "hành lang": 2 kín 1 trống quanh y0 thì ép vào làn trống
+        if (type === 'ob'){
           const sug = corridorSuggest(y0);
           if (sug !== -1) { lane = sug; if (DBG) toast('CORRIDOR FIX'); }
         }
         state.entities.push({ type, lane, y: y0 });
         return;
       }
-      // không đủ khoảng cách ⇒ thử lane khác
-      lane = (lane + 1) % CONFIG.GAME.lanes;
+  
+      lane = (lane + 1) % CONFIG.GAME.lanes; // thử làn khác
     } while (++tries < CONFIG.GAME.maxSpawnAttempts);
   }
+
 
 
 
@@ -980,21 +984,40 @@
     const lite = (state.gfxTier===2) && ((state.frame++ & 1)===1);
     ctx.clearRect(0,0,W,H);
     ctx.save();
-    if (state.shake>0 && !mqlReduce.matches){ ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake); }
+    if (state.shake>0 && !mqlReduce.matches){
+      ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake);
+    }
+  
     if (!lite) drawRoad();
+  
+    // 1) Entities trước
+    for (const e of state.entities)
+      (e.type==='ob') ? drawObstacle(laneX(e.lane), e.y) : drawOrb(laneX(e.lane), e.y);
+  
+    // 2) ✨ Links sau để luôn nằm trên các khối
     drawLinks();
-    for (const e of state.entities) (e.type==='ob') ? drawObstacle(laneX(e.lane), e.y) : drawOrb(laneX(e.lane), e.y);
+  
+    // 3) Player + particles
     drawPlayer(laneX(state.lane), state.playerY);
+  
     if (state.gfxTier===2){
-      for (let i=0;i<state.particles.length;i+=2){ const p=state.particles[i]; const k=1-(p.age/p.life); if (k<=0) continue; ctx.globalAlpha=Math.max(0,k); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,2+k*2,0,Math.PI*2); ctx.fill(); }
+      for (let i=0;i<state.particles.length;i+=2){
+        const p=state.particles[i]; const k=1-(p.age/p.life); if (k<=0) continue;
+        ctx.globalAlpha=Math.max(0,k); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,2+k*2,0,Math.PI*2); ctx.fill();
+      }
       ctx.globalAlpha=1;
     } else {
-      for (const p of state.particles){ const k=1-(p.age/p.life); ctx.globalAlpha=Math.max(0,k); ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,2+k*2,0,Math.PI*2); ctx.fill(); }
+      for (const p of state.particles){
+        const k=1-(p.age/p.life); ctx.globalAlpha=Math.max(0,k);
+        ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,2+k*2,0,Math.PI*2); ctx.fill();
+      }
       ctx.globalAlpha=1;
     }
+  
     ctx.restore();
     drawGauge();
   }
+
 
   function loop(){
     if (!state.running) return;
