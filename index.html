@@ -239,7 +239,7 @@
 
     <div id="topPanel" class="ui" hidden>
       <div class="card">
-        <h1>Bảng xếp hạng ngày</h1>
+        <h1>Bảng xếp hạng TOP</h1>
         <div id="topList" class="small">Đang tải…</div>
         <div class="row mt8"><button id="btnCloseTop">Đóng</button></div>
       </div>
@@ -477,25 +477,60 @@ window.addEventListener('pageshow', initMeta, {once:true});
   })();
 
   /* =============== Backend =============== */
+  /* ---- Gửi điểm: beacon → no-cors → JSONP (GET write) ---- */
   async function postScore(payload) {
     if (!CONFIG.API_URL) return;
+    const data = JSON.stringify(payload);
+  
+    // 1) Ưu tiên sendBeacon (an toàn khi tab đóng, không cần CORS)
     try {
-      const r = await fetch(CONFIG.API_URL, {
+      if (navigator.sendBeacon) {
+        const ok = navigator.sendBeacon(
+          CONFIG.API_URL,
+          new Blob([data], { type: 'text/plain' })
+        );
+        if (ok) return; // đã gửi xong
+      }
+    } catch (_) {}
+  
+    // 2) Fallback: fetch no-cors (gửi được nhưng không đọc được phản hồi)
+    try {
+      await fetch(CONFIG.API_URL, {
         method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain' }, // giữ simple-request, tránh preflight
-        body: JSON.stringify(payload),
-        signal: (AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined)
+        mode: 'no-cors',                // tránh CORS
+        headers: { 'Content-Type': 'text/plain' }, // simple request
+        body: data,
+        keepalive: true                 // vẫn gửi khi unload
       });
-      // Không cần đọc body, nhưng log trạng thái để soi nhanh
-      if (!r.ok) console.warn('postScore HTTP', r.status);
-    } catch (err) {
-      console.error('postScore error', err);
-      // Không chặn game, chỉ báo nhẹ
-      const t = document.getElementById('toast');
-      if (t) { t.textContent = 'Không gửi được điểm (CORS/Net)'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1200); }
-    }
+      return;
+    } catch (_) {}
+  
+    // 3) Fallback cuối: JSONP (GET write) – không cần CORS, server sẽ ghi từ query
+    await new Promise((resolve) => {
+      const cb = 'hr_post_' + Math.random().toString(36).slice(2);
+      // hạn chế độ dài UA tránh URL quá dài
+      const uaShort = (payload.ua || '').slice(0, 160);
+  
+      window[cb] = () => { try{ delete window[cb]; }catch(_){ } s.remove(); resolve(); };
+      const s = document.createElement('script');
+      s.src = CONFIG.API_URL + '?' + new URLSearchParams({
+        act: 'w', fmt: 'js', cb,
+        deviceId: payload.deviceId,
+        name: payload.name || '',
+        score: String(payload.score || 0),
+        tz: payload.tz || '',
+        ua: uaShort
+      }).toString();
+      s.onerror = () => {
+        try{ delete window[cb]; }catch(_){ } s.remove();
+        const t = document.getElementById('toast');
+        if (t) { t.textContent = 'Không gửi được điểm (Net)'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1200); }
+        resolve();
+      };
+      document.head.appendChild(s);
+    });
   }
+
 
   async function fetchTop(){
     const url = CONFIG.API_URL + '?top=100';
