@@ -318,7 +318,7 @@ window.addEventListener('pageshow', initMeta, {once:true});
   if (LOW){ CONFIG.PERF.dprMax=1.2; CONFIG.PERF.maxParticles=140; }
 
   /* =============== Utils =============== */
-  const $ = sel => document.querySelector(sel);
+ 
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const now = ()=>performance.now();
   const mqlReduce = matchMedia('(prefers-reduced-motion: reduce)');
