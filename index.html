@@ -1333,129 +1333,63 @@ setTimeout(initMeta, 500);
 
 })();</script>
 
-<!-- ===== TOP SHEET (Mobile-first) ===== -->
-<style>
-  .top-sheet{position:fixed;inset:0;z-index:9999;display:none}
-  .top-sheet.show{display:block}
-  .top-sheet .backdrop{position:absolute;inset:0;background:rgba(0,10,30,.5);backdrop-filter:blur(2px)}
-  .top-sheet .panel{
-    position:absolute;left:0;right:0;bottom:0;max-height:88vh;
-    background:var(--card,#0f172a);color:var(--text,#e5f0ff);
-    border-top-left-radius:20px;border-top-right-radius:20px;
-    box-shadow:0 -10px 30px rgba(0,0,0,.35);display:flex;flex-direction:column
-  }
-  .top-sheet .hdr{position:sticky;top:0;background:inherit;padding:12px 14px 6px;border-top-left-radius:20px;border-top-right-radius:20px}
-  .top-sheet .handle{width:48px;height:5px;border-radius:5px;background:#3b556e;margin:0 auto 10px}
-  .top-sheet h3{margin:0 6px 8px;font-size:18px}
-  .top-sheet .tools{display:flex;gap:8px;padding:0 12px 10px}
-  .top-sheet .tools input,.top-sheet .tools select{
-    flex:1;background:#0b1326;border:1px solid #1f2a44;border-radius:10px;padding:10px 12px;color:inherit
-  }
-  .top-sheet .tools select{flex:0 0 135px}
-  .podium{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px;padding:0 12px 12px}
-  .podium .card{
-    background:linear-gradient(180deg,#0b1326,#0f1a36 70%);border:1px solid #223257;border-radius:14px;
-    padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:92px
-  }
-  .podium .rank{font-size:18px}
-  .podium .name{font-weight:600;text-align:center;line-height:1.2}
-  .podium .score{opacity:.9;font-size:12px}
-  .podium .r1{background:linear-gradient(180deg,#1b2748,#0f1a36);border-color:#345aa8}
-  .list{overflow:auto;padding:0 6px 10px;flex:1}
-  .row{display:grid;grid-template-columns:38px 1fr auto;align-items:center;
-       gap:8px;padding:10px 10px;border-radius:12px;margin:6px;
-       background:#0b1326;border:1px solid #1f2a44}
-  .row.me{outline:2px solid var(--brand,#0ea5e9)}
-  .row .rk{font-weight:700;text-align:center;opacity:.9}
-  .row .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .row .sc{font-weight:600;opacity:.9}
-  .sheet-ft{padding:8px 12px}
-  .btn-more{
-    width:100%;padding:12px;border:0;border-radius:12px;
-    background:var(--brand,#0ea5e9);color:white;font-weight:700
-  }
-  .empty{padding:14px 16px;opacity:.8}
-  @media (min-width:768px){ .top-sheet .panel{left:50%;transform:translateX(-50%);max-width:520px}}
-  /* Close button for TopSheet */
-  .top-sheet .btn-close{
-    position:absolute; right:10px; top:10px;
-    width:36px; height:36px; border-radius:999px;
-    border:1px solid #1f2a44; background:#0b1326; color:#93a4c3;
-    font-size:20px; line-height:34px; text-align:center; cursor:pointer;
-  }
-  .top-sheet .btn-close:active{ transform:translateY(1px); }
-
-</style>
-
-<div id="topSheet" class="top-sheet" aria-hidden="true">
-  <div class="backdrop" onclick="TopSheet.close()"></div>
-  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="topTitle">
-    <div class="hdr">
-      <div class="handle"></div>
-      <button class="btn-close" aria-label="Đóng bảng" onclick="TopSheet.close()">×</button>
-
-      <h3 id="topTitle">Bảng xếp hạng hôm nay</h3>
-      <div class="tools">
-        <input id="topSearch" placeholder="Tìm tên / quốc gia…">
-        <select id="topFilter">
-          <option value="all">Toàn cầu</option>
-          <option value="vn">Việt Nam</option>
-          <option value="around">Quanh tôi</option>
-        </select>
-      </div>
-    </div>
-
-    <div id="podium" class="podium"></div>
-    <div id="topList" class="list" tabindex="0" aria-label="Top list"></div>
-    <div class="sheet-ft">
-      <button id="btnMore" class="btn-more">Hiển thị thêm</button>
-    </div>
-  </div>
-</div>
-
 <script>
 (function(){
-  const API = (window.CONFIG && CONFIG.API_URL) || '';
-  const state = { all:[], view:[], show:20, meName:'', meDevice:'', mounted:false };
+  const API = (window.CONFIG && window.CONFIG.API_URL) || '';
+  const S = { all:[], view:[], show:20, meName:'', meDevice:'', mounted:false };
 
-  function guessMe(){
-    const cand = document.querySelector('input[type="text"], input[name="name"], #name');
-    state.meName = (cand && cand.value || '').trim();
-    state.meDevice = (window.state && state.deviceId) || '';
-  }
-
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
   function isVN(x){
-    const tz = (x.tz||'').toLowerCase();
-    const name = String(x.name||'');
-    return tz.includes('ho_chi_minh')
-        || tz.includes('bangkok')
-        || /🇻🇳/u.test(name)
-        || /\b(vn|viet|vietnam)\b/i.test(tz);
+    const tz = String(x.tz||'').toLowerCase(), name = String(x.name||'');
+    return tz.includes('ho_chi_minh') || tz.includes('bangkok') || /🇻🇳/u.test(name) || /\b(vn|viet|vietnam)\b/i.test(tz);
+  }
+  function guessMe(){
+    const cand = document.querySelector('#name, input[name="name"], input[type="text"]');
+    S.meName = (cand && cand.value || '').trim();
+    S.meDevice = (window.state && window.state.deviceId) || '';   // 👈 đúng tham chiếu
   }
 
   const TopSheet = {
     async open(){
       guessMe();
       document.getElementById('topSheet').classList.add('show');
-      if (!state.mounted){ this.mount(); state.mounted = true; }
+      if (!S.mounted){ this.mount(); S.mounted = true; }
       await this.refresh();
       this.applyFilters(true);
     },
     close(){ document.getElementById('topSheet').classList.remove('show'); },
 
+    // ---- Robust refresh: JSON + JSONP fallback (không cần CORS) ----
     async refresh(){
+      if (!API){ S.all=[]; return; }
       try{
-        const res = await fetch(API + '?top=100&fillBots=1', {cache:'no-store'});
+        const res  = await fetch(API + '?top=100&fillBots=1&fmt=json', { cache:'no-store', credentials:'omit', referrerPolicy:'no-referrer' });
         const json = await res.json();
-        state.all = Array.isArray(json.items) ? json.items.map((it,i)=>({
-          rk: i+1,
-          name: String(it.name||'').trim(),
-          score: Number(it.score)||0,
-          tz: String(it.tz||''),     // giữ nguyên, không ép hoa
-          ua: it.ua||'',
-          deviceId: it.deviceId||''
-        })) : [];
-      }catch(e){ console.warn('TOP fetch error', e); state.all = []; }
+        this.ingest(json);
+      }catch(e){
+        console.warn('TOP fetch error', e);
+        await this.refreshJSONP();
+      }
+    },
+    refreshJSONP(){
+      return new Promise(resolve=>{
+        const cb = 'top_cb_' + Math.random().toString(36).slice(2);
+        window[cb] = (json)=>{ try{ delete window[cb]; }catch(_){ } s.remove(); this.ingest(json||{}); resolve(); };
+        const s = document.createElement('script');
+        s.src = API + '?' + new URLSearchParams({ top:'100', fillBots:'1', fmt:'js', cb });
+        s.onerror = ()=>{ try{ delete window[cb]; }catch(_){ } s.remove(); resolve(); };
+        document.head.appendChild(s);
+      });
+    },
+    ingest(json){
+      S.all = Array.isArray(json.items) ? json.items.map((it,i)=>({
+        rk:i+1,
+        name:String(it.name||'').trim() || 'Anonymous',
+        score:Number(it.score)||0,
+        tz:String(it.tz||''),
+        ua:it.ua||'',
+        deviceId:it.deviceId||''
+      })) : [];
     },
 
     mount(){
@@ -1464,8 +1398,9 @@ setTimeout(initMeta, 500);
       const more   = document.getElementById('btnMore');
       search.addEventListener('input', ()=> this.applyFilters());
       filter.addEventListener('change', ()=> this.applyFilters(true));
-      more.addEventListener('click', ()=> { state.show += 20; this.renderList(); });
+      more.addEventListener('click', ()=> { S.show += 20; this.renderList(); });
 
+      // kéo xuống để đóng
       const panel = document.querySelector('#topSheet .panel');
       let startY=0; panel.addEventListener('touchstart',e=>{ startY=e.touches[0].clientY; }, {passive:true});
       panel.addEventListener('touchmove',e=>{
@@ -1473,31 +1408,36 @@ setTimeout(initMeta, 500);
         if (dy>60 && document.getElementById('topList').scrollTop<=0) this.close();
       }, {passive:true});
 
-      window.openTop = ()=> TopSheet.open();
+      // ESC đóng
+      document.addEventListener('keydown', e=>{ if(e.key==='Escape') this.close(); }, {passive:true});
+
+      // gắn nút Top
+      const btnTop = document.getElementById('btnTop');
+      if (btnTop && !btnTop._bind){ btnTop._bind=1; btnTop.addEventListener('click', ()=>TopSheet.open()); }
     },
 
     applyFilters(resetShow){
-      if (resetShow) state.show = 20;
+      if (resetShow) S.show = 20;
       const q = document.getElementById('topSearch').value.trim().toLowerCase();
       const f = document.getElementById('topFilter').value;
 
-      let arr = state.all.slice();
+      let arr = S.all.slice();
       if (q) arr = arr.filter(x => x.name.toLowerCase().includes(q) || (x.tz||'').toLowerCase().includes(q));
       if (f==='vn') arr = arr.filter(isVN);
-      if (f==='around' && state.meName){
-        const idx = arr.findIndex(x => x.name.toLowerCase()===state.meName.toLowerCase());
+      if (f==='around' && S.meName){
+        const idx = arr.findIndex(x => x.name.toLowerCase()===S.meName.toLowerCase());
         if (idx>=0){ const from = Math.max(0, idx-10); arr = arr.slice(from, from+21); }
       }
 
       arr.sort((a,b)=> b.score-a.score).forEach((x,i)=> x.rk=i+1);
-      state.view = arr;
+      S.view = arr;
       this.renderPodium();
       this.renderList();
     },
 
     renderPodium(){
       const wrap = document.getElementById('podium'); wrap.innerHTML='';
-      const podium = state.view.slice(0,3);
+      const podium = S.view.slice(0,3);
       if (!podium.length){ wrap.innerHTML = '<div class="empty">Chưa có dữ liệu.</div>'; return; }
       const medals = ['🥈','🥇','🥉']; const order = [1,0,2];
       order.forEach((idx,i)=>{
@@ -1514,10 +1454,10 @@ setTimeout(initMeta, 500);
 
     renderList(){
       const list = document.getElementById('topList'); list.innerHTML='';
-      const limit = Math.min(state.show, state.view.length);
+      const limit = Math.min(S.show, S.view.length);
       for (let i=0;i<limit;i++){
-        const x = state.view[i];
-        const me = state.meName && x.name.toLowerCase()===state.meName.toLowerCase();
+        const x = S.view[i];
+        const me = S.meName && x.name.toLowerCase()===S.meName.toLowerCase();
         list.insertAdjacentHTML('beforeend', `
           <div class="row ${me?'me':''}" aria-label="rank ${x.rk}">
             <div class="rk">${x.rk}</div>
@@ -1526,15 +1466,14 @@ setTimeout(initMeta, 500);
           </div>
         `);
       }
-      document.getElementById('btnMore').style.display = (limit < state.view.length) ? 'block' : 'none';
+      document.getElementById('btnMore').style.display = (limit < S.view.length) ? 'block' : 'none';
     }
   };
-
-  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
   window.TopSheet = TopSheet;
 })();
 </script>
+
 
 </body>
 </html>
