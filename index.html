@@ -180,6 +180,7 @@
       <div class="pill">Điểm: <span id="score">0</span></div>
       <div class="pill">Best: <span id="best">0</span></div>
       <div class="pill small" id="stageLabel">Stage 1</div>
+      <div class="pill small" id="playerName" hidden></div>
         <!-- Energy bar -->
       <div id="energyWrap">
         <div id="energyFill"></div>
@@ -1039,17 +1040,26 @@
     state.energy=60; state.shake=0; state.surgeMs=0; state.nextSurge=CONFIG.GAME.surgeEvery;
     state.combo=0; state.comboT=0; state.nearMissCount=0;
     state.grace=CONFIG.GAME.graceMs; state.stage=1; state.lastSlipT=0; $('#stageLabel').textContent='Stage 1';
+    $('#playerName').hidden = true;
     $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true; $('#touchCtrl').hidden=false;
     $('#score').textContent='0'; $('#best').textContent=String(state.best);
     lastGaugePct=-1; drawGauge();
     drawEnergyBar();
   }
   function startFromUI(){
-    const name=$('#name').value.trim().slice(0,16);
-    state.name=name; if(name) localStorage.setItem('hrfz_last_name', name);
-    resetGame(); loop();
+    const name = $('#name').value.trim().slice(0,16);
+    state.name  = name;
+    if (name) localStorage.setItem('hrfz_last_name', name);
+  
+    /* NEW: hiển thị pill tên */
+    $('#playerName').textContent = name || 'Không Tên';
+    $('#playerName').hidden      = !name;
+  
+    resetGame();
+    loop();
     if ($('#optBgm').checked) AudioKit.startBgm(); else AudioKit.stopBgm();
   }
+
 
   $('#btnPlay').addEventListener('click', startFromUI);
   $('#btnRetry').addEventListener('click', startFromUI);
@@ -1068,15 +1078,27 @@
 
   const lastName=localStorage.getItem('hrfz_last_name'); if (lastName) $('#name').value=lastName;
 
-  $('#btnTop').addEventListener('click', async ()=>{
-    $('#topPanel').hidden=false; $('#topList').textContent='Đang tải…';
-    try{
-      const data=await fetchTop();
-      $('#topList').innerHTML = data && Array.isArray(data)
-        ? '<ol>' + data.map(x=>`<li>${x.name||'NoName'} — <b>${x.score}</b></li>`).join('') + '</ol>'
-        : 'Không có dữ liệu.';
-    }catch(_){ $('#topList').textContent='Không lấy được dữ liệu.'; }
+  // ui.js – sự kiện nút “Top 10”
+  $('#btnTop').addEventListener('click', async () => {
+    $('#topPanel').hidden = false;
+    $('#topList').textContent = 'Đang tải…';
+  
+    try {
+      const data  = await fetchTop();              // back-end trả về {items:[…]}
+      const items = Array.isArray(data) ? data     // nếu backend đã thay đổi
+                                        : (data.items || []);
+  
+      $('#topList').innerHTML = items.length
+        ? '<ol>' + items.map(x =>
+            `<li>${x.name || 'NoName'} — <b>${x.score}</b></li>`).join('') +
+          '</ol>'
+        : 'Chưa có dữ liệu.';
+    } catch (err) {
+      console.error(err);
+      $('#topList').textContent = 'Lỗi tải bảng điểm.';
+    }
   });
+
   $('#btnCloseTop').addEventListener('click', ()=>$('#topPanel').hidden=true);
 
   $('#btnTut').addEventListener('click', ()=>$('#tut').hidden=false);
