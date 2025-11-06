@@ -246,8 +246,8 @@
       lanes: 3, baseSpeed: 135, accel: 0.06,
       spawnEvery: 740, spawnAccel: 0.986,
       minSpawnEvery: 220, maxSpawnsPerFrame: 6,
-      orbChance: 0.22, freezeRate: 0.45, regenPassive: 0.003,
-      regenNear: 4, regenOrb: 6, freezeSlow: 0.25,
+      orbChance: 0.22, freezeRate: 0.45, regenPassive: 0.006,
+      regenNear: 6, regenOrb: 10, freezeSlow: 0.35,
       minGapObPx: 148, minGapOrbPx: 118, minGapMixPx: 130, maxSpawnAttempts: 3,
       surgeEvery: 300, surgeMs: 3000, graceMs: 1500
     }
@@ -628,7 +628,7 @@
     /* --- Death on zero energy --- */
     if (state.energy <= 0){
       if (!state.energyEmptyT) state.energyEmptyT = now();           // đánh dấu
-      else if (now() - state.energyEmptyT > 2000){                   // >2 s
+      else if (now() - state.energyEmptyT > 5000){                   // >2 s
         toast('Kiệt sức!');
         boom(); AudioKit.sfx('hit'); vibrate([60,40,100]);
         return gameOver();
