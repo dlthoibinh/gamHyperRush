@@ -20,7 +20,7 @@
          font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
          touch-action:manipulation;-webkit-tap-highlight-color:transparent;outline:0;
          min-height:100dvh;}
-    
+
     /* FULLSCREEN: bỏ max-width, bám theo viewport thực */
     #wrap{
       position:fixed; inset:0;            /* chiếm trọn màn hình */
@@ -28,12 +28,12 @@
       margin:0; max-width:none;           /* << bỏ 480px gây co nhỏ */
       overflow:hidden;
     }
-    
+
     /* đã có rồi nhưng để chắc chắn */
     #game{display:block;width:100%;height:100%;background:
       radial-gradient(ellipse at 50% -10%,rgba(14,165,233,.25),transparent 55%),
       linear-gradient(180deg,#0a0f1c,#0b1220)}
-    
+
     /* fallback cho máy cũ không hỗ trợ dvh */
     @supports not (height: 100dvh) {
       #wrap{ height:100vh; }
@@ -79,7 +79,7 @@
       --cw: 360px; /* canvas width hiển thị */
       --ch: 640px; /* canvas height hiển thị */
     }
-    
+
     /* #wrap chiếm trọn màn hình + căn giữa canvas ở PC */
     #wrap{
       position: fixed; inset: 0;
@@ -92,10 +92,10 @@
         calc(env(safe-area-inset-bottom) + 8px)
         env(safe-area-inset-left);
     }
-    
+
     /* Canvas có bo góc + bóng nhẹ cho PC */
     #game{ border-radius: 14px; box-shadow: 0 28px 80px rgba(14,165,233,.12); }
-    
+
     /* HUD bám theo bề rộng canvas (đẹp trên PC, không lệch trái) */
     .hud{
       position: absolute;
@@ -104,19 +104,19 @@
       width: var(--cw);                         /* căn theo canvas */
       padding: 8px 12px;
     }
-    
+
     /* Gauge bám mép phải của canvas (không dạt ra rìa màn hình) */
     #gauge{
       position: absolute;
       top: calc(max(46px, env(safe-area-inset-top) + 38px));
       right: calc(50% - var(--cw)/2 + 8px);     /* mép phải canvas + 8px */
     }
-    
+
     /* Toast giữ theo tâm canvas */
     #toast{
       left: 50%; transform: translateX(-50%);
     }
-    
+
     /* Cụm nút chạm bám đáy canvas + safe-area */
     .touch-ctrl{
       position: absolute; left: 50%; transform: translateX(-50%);
@@ -124,10 +124,10 @@
       bottom: max(18px, env(safe-area-inset-bottom));
       padding: 0 18px;
     }
-    
+
     /* Tăng cỡ chữ HUD theo màn lớn nhưng không quá to */
     .pill{ font-size: clamp(12px, 1.2vw, 16px); }
-    
+
     /* PC lớn: bo góc & bóng đậm hơn chút */
     @media (min-width: 900px){
       #game{ border-radius: 18px; }
@@ -159,6 +159,8 @@
       z-index: 9999;                 /* cao nhất */
       text-shadow: 0 1px 2px rgba(0,0,0,.35);
     }
+
+
   </style>
 </head>
 <body>
@@ -187,6 +189,7 @@
           <button id="btnTut">Hướng dẫn</button>
         </div>
       </div>
+
     </div>
 
     <div id="uiHUD" class="hud" hidden>
@@ -194,10 +197,11 @@
       <div class="pill">Best: <span id="best">0</span></div>
       <div class="pill small" id="stageLabel">Stage 1</div>
       <div class="pill small" id="playerName" hidden></div>
-      <!-- Energy bar -->
+        <!-- Energy bar -->
       <div id="energyWrap">
         <div id="energyFill"></div>
       </div>
+
     </div>
 
     <div id="uiOver" class="ui" hidden role="dialog" aria-modal="true">
@@ -235,28 +239,43 @@
       <button id="btnL">◀</button>
       <button id="btnR">▶</button>
     </div>
+
+    <div id="topPanel" class="ui" hidden>
+      <div class="card">
+        <h1>Bảng xếp hạng TOP</h1>
+        <div id="topList" class="small">Đang tải…</div>
+        <div class="row mt8"><button id="btnCloseTop">Đóng</button></div>
+      </div>
+    </div>
   </div>
 
 <script>
 (() => {
   'use strict';
-  /* === Utils đặt lên đầu để dùng ngay === */
-  const $ = sel => document.querySelector(sel);
+/* === Utils đặt lên đầu để dùng ngay === */
+const $ = sel => document.querySelector(sel);
 
-  /* META hiển thị góc trái dưới */
-  const META = { version: 'v0.9.3', author: 'Lâm đại ka' };
-  function initMeta(){
-    const ver = document.getElementById('verLabel');
-    const au  = document.getElementById('authorLabel');
-    if (ver) ver.textContent = META.version || '';
-    if (au)  au.textContent  = META.author  || '';
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMeta, {once:true});
-  } else { initMeta(); }
-  window.addEventListener('pageshow', initMeta);
-  setTimeout(initMeta, 0);
-  setTimeout(initMeta, 500);
+/* META hiển thị góc trái dưới */
+const META = { version: 'v0.9.3', author: 'Lâm đại ka' };
+
+function initMeta(){
+  const ver = document.getElementById('verLabel');
+  const au  = document.getElementById('authorLabel');
+  if (ver) ver.textContent = META.version || '';
+  if (au)  au.textContent  = META.author  || '';
+}
+
+/* gọi nhiều nhịp để tránh lệch thời điểm attach DOM */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initMeta, {once:true});
+} else {
+  initMeta();
+}
+window.addEventListener('pageshow', initMeta);
+setTimeout(initMeta, 0);
+setTimeout(initMeta, 500);
+
+
 
   /* =============== Config =============== */
   const CONFIG = {
@@ -273,31 +292,41 @@
       surgeEvery: 300, surgeMs: 3000, graceMs: 1500
     }
   };
-  window.CONFIG = CONFIG;  /* cho TopSheet đọc API_URL */
-  const THEME_PRO = true;
+
+  const THEME_PRO = true; // true = nền pro, false = nền sạch tối giản
 
   const TIERS = {
     base:{ maxEntities:120, maxParticles:180, minSpawnEvery:220, cap:6,  roadStep:40,  dprAdj:0 },
-    mid :{ maxEntities:80,  maxParticles:90,  minSpawnEvery:280, cap:4,  roadStep:56,  dprAdj:-0.15 },
-    low :{ maxEntities:60,  maxParticles:60,  minSpawnEvery:320, cap:3,  roadStep:72,  dprAdj:-0.30 }
+    mid :{ maxEntities:80,  maxParticles:90,  minSpawnEvery:280, cap:4,  roadStep:56,  dprAdj:-0.15 }, // ↓ 95 ➜ 80
+    low :{ maxEntities:60,  maxParticles:60,  minSpawnEvery:320, cap:3,  roadStep:72,  dprAdj:-0.30 }  // ↓ 80 ➜ 60
   };
 
   /* ===== Anti-exploit ===== */
+  /* ===== Anti-exploit (tinh chỉnh) ===== */
   const ANTI = {
-    campMs: 1800,
-    campCooldownMs: 1000,
-    spawnJitter: 90
+    campMs: 1800,          // >1.8 s không đổi làn
+    campCooldownMs: 1000,  // giãn cách giữa 2 lần ép
+    spawnJitter: 90        // ↑ tăng biên độ jitter (≈ minGap/2)
   };
-  const AUTO_SNAP = { enable: true, speed : 0.12 };
+  /* --------- Auto-snap nhân vật về tâm làn --------- */
+  const AUTO_SNAP = {      // Tắt = đặt enable:false
+    enable: true,          // true = bật
+    speed : 0.12           // 0.10-0.18 → càng lớn càng snap nhanh
+  };
+
+  // Bật debug bằng ?debug=1
   const DBG = new URLSearchParams(location.search).get('debug') === '1';
+
 
   const LOW = (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=4);
   if (LOW){ CONFIG.PERF.dprMax=1.2; CONFIG.PERF.maxParticles=140; }
 
   /* =============== Utils =============== */
+
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const now = ()=>performance.now();
   const mqlReduce = matchMedia('(prefers-reduced-motion: reduce)');
+
   function vibrate(p){ try{ if(!mqlReduce.matches) navigator.vibrate && navigator.vibrate(p);}catch(_){ } }
 
   function getDeviceId(){
@@ -311,21 +340,37 @@
 
   function fitCanvas(canvas){
     const ratio = BASE_W / BASE_H;
+
+    // Kích thước viewport "thực" (ẩn/hiện URL bar, bàn phím…)
     const w = Math.max(1, (window.visualViewport?.width || window.innerWidth));
     const h = Math.max(1, (window.visualViewport?.height || window.innerHeight));
+
+    // Tính size canvas theo tỉ lệ 360x640
     let cw = w, ch = w / ratio;
     if (ch > h) { ch = h; cw = h * ratio; }
+
+    // Style kích thước hiển thị
     canvas.style.width  = cw + 'px';
     canvas.style.height = ch + 'px';
+
+    // Cập nhật biến CSS để HUD/gauge/nút bám theo đúng bề rộng canvas
     document.documentElement.style.setProperty('--cw', cw + 'px');
     document.documentElement.style.setProperty('--ch', ch + 'px');
+
+    // DPR an toàn theo cấu hình hiệu năng
     const dprTarget = clamp((window.devicePixelRatio || 1), CONFIG.PERF.minDpr, CONFIG.PERF.dprMax);
     DPR = dprTarget;
+
+    // Kích thước buffer vẽ
     canvas.width  = Math.round(BASE_W * DPR);
     canvas.height = Math.round(BASE_H * DPR);
+
+    // Scale hệ toạ độ về đơn vị logic (BASE_W x BASE_H)
     const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
+
+
 
   function dailySeed(){
     const d=new Date(); const s=Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())>>>0;
@@ -333,28 +378,35 @@
   }
 
   /* ====== Spawn table động ====== */
+  // ✨ Khoảng cách tối thiểu tùy cặp loại
   function needGapBetween(typeA, typeB){
     if (typeA === 'ob'  && typeB === 'ob')  return CONFIG.GAME.minGapObPx;
     if (typeA === 'orb' && typeB === 'orb') return CONFIG.GAME.minGapOrbPx;
-    return CONFIG.GAME.minGapMixPx;
+    return CONFIG.GAME.minGapMixPx; // khác loại
   }
+
+  // ✨ Lane có đủ khoảng cách để spawn y0 cho 'type' không?
   function okGapForLane(lane, type, y0){
+    // y tăng theo chiều xuống; spawn ở y0 âm ⇒ y0 phải "trên" đủ xa so với mọi entity cùng làn
     for (let i = state.entities.length - 1; i >= 0; i--){
       const e = state.entities[i];
       if (e.lane !== lane) continue;
       const need = needGapBetween(type, e.type);
-      if ((y0 - e.y) > -need) return false;
+      if ((y0 - e.y) > -need) return false; // chưa đủ khoảng cách
     }
     return true;
   }
+  // --- Utils tránh spawn "bịt 3 cột" ---
   function rowBlocked(y0){
+    // quét ±minGapObPx quanh toạ độ Y chuẩn bị spawn
     const band = CONFIG.GAME.minGapObPx;
     const occ  = new Array(CONFIG.GAME.lanes).fill(false);
+
     for (const e of state.entities){
-      if (e.type !== 'ob') continue;
+      if (e.type !== 'ob') continue;               // chỉ xét obstacle
       if (Math.abs(e.y - y0) <= band) occ[e.lane] = true;
     }
-    return occ.every(Boolean);
+    return occ.every(Boolean);                    // true = cả 3 lane đã kín
   }
 
   function makeSpawnTable(base, accel, minMs, limit=4096){
@@ -429,26 +481,40 @@
   })();
 
   /* =============== Backend =============== */
+  /* ---- Gửi điểm: beacon → no-cors → JSONP (GET write) ---- */
   async function postScore(payload) {
     if (!CONFIG.API_URL) return;
     const data = JSON.stringify(payload);
+
+    // 1) Ưu tiên sendBeacon (an toàn khi tab đóng, không cần CORS)
     try {
       if (navigator.sendBeacon) {
-        const ok = navigator.sendBeacon(CONFIG.API_URL, new Blob([data], { type: 'text/plain' }));
-        if (ok) return;
+        const ok = navigator.sendBeacon(
+          CONFIG.API_URL,
+          new Blob([data], { type: 'text/plain' })
+        );
+        if (ok) return; // đã gửi xong
       }
     } catch (_) {}
+
+    // 2) Fallback: fetch no-cors (gửi được nhưng không đọc được phản hồi)
     try {
       await fetch(CONFIG.API_URL, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: data, keepalive: true
+        method: 'POST',
+        mode: 'no-cors',                // tránh CORS
+        headers: { 'Content-Type': 'text/plain' }, // simple request
+        body: data,
+        keepalive: true                 // vẫn gửi khi unload
       });
       return;
     } catch (_) {}
+
+    // 3) Fallback cuối: JSONP (GET write) – không cần CORS, server sẽ ghi từ query
     await new Promise((resolve) => {
       const cb = 'hr_post_' + Math.random().toString(36).slice(2);
+      // hạn chế độ dài UA tránh URL quá dài
       const uaShort = (payload.ua || '').slice(0, 160);
+
       window[cb] = () => { try{ delete window[cb]; }catch(_){ } s.remove(); resolve(); };
       const s = document.createElement('script');
       s.src = CONFIG.API_URL + '?' + new URLSearchParams({
@@ -469,6 +535,31 @@
     });
   }
 
+
+  async function fetchTop(){
+    const url = CONFIG.API_URL + '?top=10';
+    try {
+      const r = await fetch(url, {
+        mode: 'cors',
+        signal: (AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined)
+      });
+      return await r.json();                       // {items:[...]}
+    } catch (err) {
+      // Fallback JSONP: không cần CORS
+      return new Promise((resolve, reject) => {
+        const cb = 'hr_cb_' + Math.random().toString(36).slice(2);
+        window[cb] = (data) => { try{ delete window[cb]; }catch(_){}
+                              s.remove(); resolve(data); };
+        const s = document.createElement('script');
+        s.src = CONFIG.API_URL + '?top=100&fmt=js&cb=' + cb;
+        s.onerror = () => { try{ delete window[cb]; }catch(_){}
+                            s.remove(); reject(new Error('jsonp_error')); };
+        document.head.appendChild(s);
+      });
+    }
+  }
+
+
   /* =============== Game State =============== */
   const canvas = $('#game'); 
   const ctx = canvas.getContext('2d');
@@ -476,14 +567,17 @@
   addEventListener('resize', () => fitCanvas(canvas));
   if (window.visualViewport){
     visualViewport.addEventListener('resize', () => fitCanvas(canvas));
-    visualViewport.addEventListener('scroll',  () => fitCanvas(canvas));
+    visualViewport.addEventListener('scroll',  () => fitCanvas(canvas)); // khi URL bar trượt
   }
   new ResizeObserver(() => fitCanvas(canvas)).observe($('#wrap'));
+
+
   const gcv = $('#gcv'); 
   const gctx = gcv.getContext('2d');
+
   const energyFill = $('#energyFill');
 
-  let W=360, H=640;
+  let W=BASE_W, H=BASE_H;
   const state = {
     running:false, over:false, startedAt:0, playMs:0,
     name:'', score:0, best:Number(localStorage.getItem('hrfz_best')||0),
@@ -506,11 +600,12 @@
     nearMissCount:0,
     lowSpec:false, fpsEMA:60,
     gfxTier:0, _tierLockT:0, frame:0,
-    lastSlipT:0,
-    energyEmptyT: 0,
-    lastLaneChangeT: now(),
-    _laneI: 1,
-    _antiCampT: 0
+    lastSlipT:0,    
+    energyEmptyT: 0, 
+    lastLaneChangeT: now(),      // lần gần nhất đổi làn nguyên
+    _laneI: 1,                   // làn nguyên hiện tại (để so sánh)
+    _antiCampT: 0,               // cooldown anti-camp
+
   };
 
   /* =============== Particles =============== */
@@ -610,6 +705,7 @@
     CONFIG.GAME.maxSpawnsPerFrame = t.cap;
     ROAD_STEP = t.roadStep;
     rebuildSpawnTable(t.minSpawnEvery);
+
     const newDpr = clamp(DPR + t.dprAdj, CONFIG.PERF.minDpr, CONFIG.PERF.dprMax);
     if (Math.abs(newDpr - DPR) > 0.01){
       DPR = newDpr; fitCanvas(canvas);
@@ -637,19 +733,24 @@
     const passive = state.holding ? 0 : CONFIG.GAME.regenPassive * (dt/10);
     state.energy = Math.min(
         100,
-        (state.holding ? state.energy - CONFIG.GAME.freezeRate * (dt/10) : state.energy) + passive
+        (state.holding
+            ? state.energy - CONFIG.GAME.freezeRate * (dt/10)   // đang Freeze → hao
+            : state.energy                                      // không Freeze → giữ nguyên
+        )
+        + passive                                               // chỉ hồi khi không Freeze
     );
-    drawEnergyBar();
 
+    drawEnergyBar();
+    /* --- Death on zero energy --- */
     if (state.energy <= 0){
-      if (!state.energyEmptyT) state.energyEmptyT = now();
-      else if (now() - state.energyEmptyT > 5000){
+      if (!state.energyEmptyT) state.energyEmptyT = now();           // đánh dấu
+      else if (now() - state.energyEmptyT > 5000){                   // >2 s
         toast('Kiệt sức!');
         boom(); AudioKit.sfx('hit'); vibrate([60,40,100]);
         return gameOver();
       }
     }else{
-      state.energyEmptyT = 0;
+      state.energyEmptyT = 0;  // reset khi có năng lượng lại
     }
 
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
@@ -659,20 +760,21 @@
     $('#score').textContent = String(Math.floor(state.score));
 
     smoothLane(dtEff);
-
+    /* ===== Auto-snap về giữa làn (khi buông tay) ===== */
     const idleTooLong = state.dragging && (now() - state.lastDragT > 300);
     if (AUTO_SNAP.enable && !state.holding && (!state.dragging || idleTooLong)) {
-      const nearest = Math.round(state.desiredLane);
+      const nearest = Math.round(state.desiredLane);     // làn chuẩn (0,1,2…)
       const diff    = nearest - state.desiredLane;
-      if (Math.abs(diff) > 0.001) {
-        state.desiredLane += diff * AUTO_SNAP.speed;
+      if (Math.abs(diff) > 0.001) {                      // còn lệch
+        state.desiredLane += diff * AUTO_SNAP.speed;     // nội suy êm
         if (Math.abs(nearest - state.desiredLane) <= 0.02){
-          state.desiredLane = nearest;
-          state.laneV = 0;
+          state.desiredLane = nearest;                   // chốt cứng
+          state.laneV = 0;                               // dừng dao động
         }
       }
     }
 
+    /* Theo dõi đổi làn nguyên để reset đồng hồ camping */
     {
       const li = Math.round(state.desiredLane);
       if (li !== state._laneI) {
@@ -699,7 +801,7 @@
     if (spawned >= cap && state.lastSpawn > spawnEvery * spawnMul * 4) state.lastSpawn = 0;
 
     const px = laneX(state.lane), py = state.playerY;
-    let eLnear = null, eRnear = null;
+    let eLnear = null, eRnear = null; // để vẽ link / bonus
 
     for (let i=state.entities.length-1;i>=0;i--) {
       const e = state.entities[i]; e.y += state.speed * dtEff/1000;
@@ -715,20 +817,29 @@
       }
 
       if (e.type === 'ob') {
-        const collided = (state.grace<=0) && aabb(px,py,HIT.P_W,HIT_P_H=HIT.P_H, ex,ey,HIT.OB_W,HIT.OB_H);
+        const collided = (state.grace<=0) && aabb(px,py,HIT.P_W,HIT.P_H, ex,ey,HIT.OB_W,HIT.OB_H);
         const near = !collided && aabb(px,py,HIT.P_W+HIT.NEAR_PAD,HIT.P_H+HIT.NEAR_PAD, ex,ey,HIT.OB_W+HIT.NEAR_PAD,HIT.OB_H+HIT.NEAR_PAD);
 
         if (near && !e.nearDone && now() - state.lastNearT > 240) {
-          state.nearMissCount++;
-          if (now() - state.comboT < 1200) state.combo++; else state.combo = 1;
-          state.comboT = now();
-          const bonus = CONFIG.GAME.regenNear + Math.min(12, 2 * Math.max(0, state.combo - 1));
-          state.energy = Math.min(100, state.energy + bonus);
-          state.score  += 4 * state.combo;
-          toast(state.combo > 1 ? `NEAR-MISS x${state.combo} +${bonus}%` : `NEAR-MISS +${CONFIG.GAME.regenNear}%`);
-          state.lastNearT = now();
-          AudioKit.sfx('near'); vibrate(10);
-          e.nearDone = true;
+            state.nearMissCount++;
+
+            if (now() - state.comboT < 1200) state.combo++;
+            else                             state.combo = 1;
+            state.comboT = now();
+
+            const bonus = CONFIG.GAME.regenNear + Math.min(12, 2 * Math.max(0, state.combo - 1));
+            state.energy = Math.min(100, state.energy + bonus);
+            state.score  += 4 * state.combo;
+
+            toast(state.combo > 1
+                  ? `NEAR-MISS x${state.combo} +${bonus}%`
+                  : `NEAR-MISS +${CONFIG.GAME.regenNear}%`);
+
+            state.lastNearT = now();
+            AudioKit.sfx('near');
+            vibrate(10);
+
+            e.nearDone = true;   // khóa lại cho tới khi khối vượt qua đầu người chơi
         }
 
         if (collided) {
@@ -737,6 +848,7 @@
           return gameOver();
         }
 
+        // Ghi nhận hai khối ở 2 làn kề nhau quanh người chơi để xử lý link/bonus
         const L = Math.floor(state.lane), R = L+1;
         if (e.lane===L && Math.abs(ey - py) < 34) eLnear = e;
         if (e.lane===R && Math.abs(ey - py) < 34) eRnear = e;
@@ -746,21 +858,26 @@
       if (e.y > H+50) state.entities.splice(i,1);
     }
 
+    /* ===== Công bằng “đi giữa 2 cột”: chỉ xử thua nếu khe thật sự KHÔNG LỌT ===== */
     if (state.grace <= 0) {
       const frac = state.lane - Math.floor(state.lane);
       if (frac > 0.44 && frac < 0.56) {
         const L = Math.floor(state.lane), R = L + 1;
         if (eLnear && eRnear) {
           const laneW = laneWidth();
-          const gapBetweenInnerEdges = laneW - 2*(HIT.OB_W/2);
-          const needToPass = HIT.P_W + 6;
+          const gapBetweenInnerEdges = laneW - 2*(HIT.OB_W/2); // = laneW - 36
+          const needToPass = HIT.P_W + 6; // người chơi + biên an toàn
           const impossible = gapBetweenInnerEdges < needToPass;
+
+          // hiển thị chấm đỏ giữa 2 khối (đậm nếu impossible)
           addLink(py, impossible);
+
           if (impossible) {
             if (state.score > state.best){ state.best = Math.floor(state.score); localStorage.setItem('hrfz_best', state.best); }
             const pxMid = laneX(state.lane); boom(); spawnParticles(pxMid,py,'#e11d48',22,1.6); AudioKit.sfx('hit'); vibrate([50,40,80]);
             return gameOver();
           } else {
+            // thưởng SLIP nhỏ khi lọt khe hẹp (cooldown)
             if (now()-state.lastSlipT>800) {
               state.lastSlipT = now();
               state.score += 12;
@@ -773,19 +890,25 @@
       }
     }
 
+    // Particles
     const pf = state.lowSpec ? 0.7 : 1;
     for (let i=state.particles.length-1;i>=0;i--){
       const p=state.particles[i]; p.age += dtEff; if (p.age>p.life){ state.particles.splice(i,1); continue; }
       p.x += p.vx * dtEff/16.6; p.y += p.vy * dtEff/16.6; p.vy += 0.002*dtEff*pf;
     }
+    // links age
     for (let i=links.length-1;i>=0;i--){ links[i].age += dtEff; if (links[i].age>links[i].life) links.splice(i,1); }
+
     state.shake *= mqlReduce.matches ? 0.9 : 0.92;
   }
-
-  /* ---------- Gợi ý “bẻ hành lang” ---------- */
+  /* Gợi ý làn để phá "hành lang" (2 kín, 1 trống trong cùng dải y) */
+  /* Gợi ý làn để phá "hành lang" (2 kín, 1 trống trong dải y gần nhau) */
+  /* ---------- Bẻ “hành lang an toàn” ---------- */
   function corridorSuggest(y){
-    const band = CONFIG.GAME.minGapObPx + ROAD_STEP;
+    // quét dải ±band quanh y
+    const band = CONFIG.GAME.minGapObPx + ROAD_STEP;  // rộng hơn → bắt đủ 2 cột
     const occ  = new Array(CONFIG.GAME.lanes).fill(false);
+
     for (const e of state.entities){
       if (e.type !== 'ob') continue;
       if (Math.abs(e.y - y) <= band) occ[e.lane] = true;
@@ -797,35 +920,44 @@
     return (filled === CONFIG.GAME.lanes - 1) ? empty : -1;
   }
 
+
+
   /* ====== Spawn khối ====== */
   function trySpawn(){
     if (state.entities.length >= CONFIG.PERF.maxEntities) return;
+
     const early = (state.score < 80);
     const type  = (state.rng() < (early ? 0.4 : CONFIG.GAME.orbChance)) ? 'orb' : 'ob';
-    if (early && type === 'ob') return;
+    if (early && type === 'ob') return;            // giai đoạn dễ
 
     let lane  = Math.floor(state.rng() * CONFIG.GAME.lanes);
     let tries = 0;
 
+    /* 1. Anti-camping */
     if (type === 'ob'
         && now() - state.lastLaneChangeT > ANTI.campMs
         && now() - state._antiCampT      > ANTI.campCooldownMs){
-      lane = Math.round(state.lane);
+      lane = Math.round(state.lane);               // chặn ngay làn hiện tại
       state._antiCampT = now();
       if (DBG) toast('ANTI-CAMP');
     }
 
+    /* 2 + 3. Jitter Y & Corridor fix */
     do {
+      // Jitter 2 chiều ±spawnJitter
       const jitter = (state.rng() * 2 - 1) * ANTI.spawnJitter;
-      const y0 = -40 + jitter;
+      const y0 = -40 + jitter;                     // 👈 đổi dấu ±
 
-      if (okGapForLane(lane, type, y0) && (type !== 'ob' || !rowBlocked(y0))){
+      if (okGapForLane(lane, type, y0) &&
+          (type !== 'ob' || !rowBlocked(y0))){       // ✨ NEW chốt an toàn
         state.entities.push({type, lane, y:y0, nearDone:false});
         return;
       }
-      lane = (lane + 1) % CONFIG.GAME.lanes;
+
+      lane = (lane + 1) % CONFIG.GAME.lanes;       // thử làn khác
     } while (++tries < CONFIG.GAME.maxSpawnAttempts);
   }
+
 
   /* =============== Render =============== */
   function laneX(lane){
@@ -844,10 +976,12 @@
   }
 
   function drawRoad() {
+    // Nền chính
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#09111b'); g.addColorStop(0.55, '#0a1320'); g.addColorStop(1, '#0b1220');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
+    // Vạch phân làn dọc
     const lanes = CONFIG.GAME.lanes, roadW = W - MARGIN * 2;
     ctx.save();
     ctx.strokeStyle = 'rgba(148,163,184,0.10)'; ctx.lineWidth = 2;
@@ -857,12 +991,14 @@
     }
     ctx.restore();
 
+    // Vignette & spotlight
     const spot = ctx.createRadialGradient(W/2, H*0.16, 20, W/2, H*0.16, H*0.92);
     spot.addColorStop(0, 'rgba(56,189,248,0.18)');
     spot.addColorStop(1, 'rgba(56,189,248,0.00)');
     ctx.fillStyle = spot; ctx.fillRect(0, 0, W, H);
 
     if (THEME_PRO) {
+      // Tối nhẹ hai mép đường (tạo chiều sâu)
       const edgeL = ctx.createLinearGradient(0, 0, MARGIN+12, 0);
       edgeL.addColorStop(0, 'rgba(0,0,0,0.35)'); edgeL.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = edgeL; ctx.fillRect(0, 0, MARGIN+12, H);
@@ -871,6 +1007,7 @@
       edgeR.addColorStop(0, 'rgba(0,0,0,0)'); edgeR.addColorStop(1, 'rgba(0,0,0,0.35)');
       ctx.fillStyle = edgeR; ctx.fillRect(W-(MARGIN+12), 0, MARGIN+12, H);
 
+      // Vệt “speed glow” rất mờ theo stage (không kẻ vạch ngang)
       const k = Math.min(1, state.stage / 10);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -883,6 +1020,7 @@
       ctx.restore();
     }
   }
+
 
   function roundRect(x,y,w,h,r,fill,stroke){
     ctx.beginPath();
@@ -920,16 +1058,20 @@
     ctx.restore();
   }
 
+  /* ===== Vẽ chấm đỏ nối giữa 2 khối ===== */
   function drawLinks(){
     const lw = HIT.OB_W/2, xStep = 14;
     for (const L of links){
       const lifeK = Math.max(0, 1 - L.age/L.life);
       const alpha = (L.strong ? 0.55 : 0.28) * lifeK;
+      const Llane = Math.floor(state.lane); // vị trí lane hiện tại chỉ để lấy x
+      const x1 = laneX(0) + (laneWidth()*Math.floor(state.lane)); // không dùng lane hiện tại; ta dựng chung cho mọi cặp
+      // vẽ cho mọi cặp kề nhau
       for (let k=0; k<CONFIG.GAME.lanes-1; k++){
         const xa = laneX(k) + lw, xb = laneX(k+1) - lw;
         ctx.globalAlpha = alpha;
         for (let x=xa; x<=xb; x+=xStep){
-          ctx.fillStyle = 'rgba(239,68,68,1)';
+          ctx.fillStyle = L.strong ? 'rgba(239,68,68,1)' : 'rgba(239,68,68,1)';
           ctx.beginPath(); ctx.arc(x, L.y, 2.2, 0, Math.PI*2); ctx.fill();
         }
         ctx.globalAlpha = 1;
@@ -965,6 +1107,8 @@
   function drawEnergyBar(){
     const pct = clamp(state.energy,0,100);
     energyFill.style.width = pct + '%';
+
+    /* Đổi màu từ xanh→vàng→đỏ */
     if (pct > 60)      energyFill.style.background = 'linear-gradient(90deg,#16a34a,#22d3ee)';
     else if (pct > 30) energyFill.style.background = 'linear-gradient(90deg,#eab308,#facc15)';
     else               energyFill.style.background = 'linear-gradient(90deg,#ef4444,#b91c1c)';
@@ -1020,15 +1164,18 @@
   function startFromUI(){
     const name = $('#name').value.trim().slice(0,16);
     state.name  = name;
-    if (name) localStorage.setItem('hrfz_last_name', name);
+    if (name) localStorage.setItem('hrfz_last_name', name);  
+    /* NEW: hiển thị pill tên */
     $('#playerName').textContent = name || 'Không Tên';
     $('#playerName').hidden      = !name;
+
     resetGame();
     $('#playerName').hidden = !state.name;
     $('#playerName').textContent = state.name || '';
     loop();
     if ($('#optBgm').checked) AudioKit.startBgm(); else AudioKit.stopBgm();
   }
+
 
   $('#btnPlay').addEventListener('click', startFromUI);
   $('#btnRetry').addEventListener('click', startFromUI);
@@ -1044,13 +1191,35 @@
   $('#btnL').addEventListener('click', ()=>stepLane(-1));
   $('#btnR').addEventListener('click', ()=>stepLane(1));
   $('#best').textContent = String(state.best);
+
   const lastName=localStorage.getItem('hrfz_last_name'); if (lastName) $('#name').value=lastName;
 
-  /* ===== Top 100: dùng TopSheet ===== */
-  $('#btnTop').addEventListener('click', ()=>{ if (window.TopSheet) window.TopSheet.open(); });
+  // ui.js – sự kiện nút “Top 10”
+  $('#btnTop').addEventListener('click', async () => {
+    $('#topPanel').hidden = false;
+    $('#topList').textContent = 'Đang tải…';
+
+    try {
+      const data  = await fetchTop();              // back-end trả về {items:[…]}
+      const items = Array.isArray(data) ? data     // nếu backend đã thay đổi
+                                        : (data.items || []);
+
+      $('#topList').innerHTML = items.length
+        ? '<ol>' + items.map(x =>
+            `<li>${x.name || 'NoName'} — <b>${x.score}</b></li>`).join('') +
+          '</ol>'
+        : 'Chưa có dữ liệu.';
+    } catch (err) {
+      console.error(err);
+      $('#topList').textContent = 'Lỗi tải bảng điểm.';
+    }
+  });
+
+  $('#btnCloseTop').addEventListener('click', ()=>$('#topPanel').hidden=true);
 
   $('#btnTut').addEventListener('click', ()=>$('#tut').hidden=false);
   $('#btnOkTut').addEventListener('click', ()=>{ $('#tut').hidden=true; localStorage.setItem('hrfz_seen_tut','1'); });
+
   if (!localStorage.getItem('hrfz_seen_tut')) $('#tut').hidden=false;
 
   const ps = new URLSearchParams(location.search);
@@ -1068,7 +1237,6 @@
       state.running=true; state._autoResume=false; last=now(); loop();
     }
   }, {passive:true});
-
   function drawWatermark(){
     const t = (META.author ? META.author : '') + (META.version ? ' • ' + META.version : '');
     if (!t) return;
@@ -1089,11 +1257,19 @@
     if (state.shake>0 && !mqlReduce.matches){
       ctx.translate((Math.random()-0.5)*state.shake, (Math.random()-0.5)*state.shake);
     }
+
     if (!lite) drawRoad();
+
+    // 1) Entities trước
     for (const e of state.entities)
       (e.type==='ob') ? drawObstacle(laneX(e.lane), e.y) : drawOrb(laneX(e.lane), e.y);
+
+    // 2) ✨ Links sau để luôn nằm trên các khối
     drawLinks();
+
+    // 3) Player + particles
     drawPlayer(laneX(state.lane), state.playerY);
+
     if (state.gfxTier===2){
       for (let i=0;i<state.particles.length;i+=2){
         const p=state.particles[i]; const k=1-(p.age/p.life); if (k<=0) continue;
@@ -1107,18 +1283,24 @@
       }
       ctx.globalAlpha=1;
     }
+
     ctx.restore();
     drawGauge();
-    drawWatermark();
+
+    drawWatermark(); 
   }
+
 
   function loop(){
     if (!state.running) return;
     const t=now(); let dt=Math.min(34,t-last); last=t; acc+=dt;
+
     const fps = 1000/Math.max(1, dt);
     state.fpsEMA = state.fpsEMA*0.9 + fps*0.1;
+
     if (state.fpsEMA < 52) state.lowSpec = true;
     autoTune();
+
     while (acc>=16){ update(16); acc-=16; }
     draw(); requestAnimationFrame(loop);
   }
