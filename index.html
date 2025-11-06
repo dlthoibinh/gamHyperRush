@@ -149,24 +149,27 @@
       transition:width .15s linear;
     }
     #aboutBar{
-      position: absolute;
-      left: 8px;
-      bottom: max(8px, env(safe-area-inset-bottom));
-      font-size: 12px;
+      position:absolute;
+      left:8px;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+      font-size:12px;
       color: var(--muted);
-      opacity: .65;
-      pointer-events: none;      /* không cản nút cảm ứng */
-      z-index: 70;               /* cao hơn canvas */
+      opacity:.9;
+      pointer-events:none;
+      z-index: 9999;                 /* cao nhất */
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
     }
+
 
   </style>
 </head>
 <body>
   <div id="wrap">
     <canvas id="game" width="360" height="640" aria-label="HyperRush Freeze"></canvas>
-    <div id="aboutBar">
-      <span id="verLabel"></span> • <span id="authorLabel"></span>
+    <div id="aboutBar" aria-hidden="true">
+      <span id="verLabel">v0.9.3</span> • <span id="authorLabel">Lâm đại ka</span>
     </div>
+
     <div id="uiStart" class="ui" role="dialog" aria-modal="true">
       <div class="card">
         <h1>HyperRush — Freeze</h1>
@@ -253,26 +256,27 @@
 const $ = sel => document.querySelector(sel);
 
 /* META hiển thị góc trái dưới */
-const META = {
-  version : 'v0.9.3',
-  author  : 'Lâm daika'
-};
+const META = { version: 'v0.9.3', author: 'Lâm đại ka' };
 
-/* Ghim version & author một cách an toàn, không phụ thuộc thời điểm */
 function initMeta(){
   const ver = document.getElementById('verLabel');
   const au  = document.getElementById('authorLabel');
-  if (ver) ver.textContent = META.version;
-  if (au)  au.textContent  = META.author;
+  if (ver) ver.textContent = META.version || '';
+  if (au)  au.textContent  = META.author  || '';
 }
 
-/* Gọi ngay + đảm bảo gọi lại khi trang đã tải */
+/* gọi nhiều nhịp để tránh lệch thời điểm attach DOM */
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initMeta, {once:true});
 } else {
   initMeta();
 }
-window.addEventListener('pageshow', initMeta, {once:true});
+window.addEventListener('pageshow', initMeta);
+setTimeout(initMeta, 0);
+setTimeout(initMeta, 500);
+
+
+
   /* =============== Config =============== */
   const CONFIG = {
     API_URL: 'https://script.google.com/macros/s/AKfycbznfw8rrffCKv0OObRRc8j6YHKir6dEwpLrG4eNn-Azc3xvg4_UrI3fbUoBRv6Dq-e1DQ/exec',
@@ -1233,6 +1237,17 @@ window.addEventListener('pageshow', initMeta, {once:true});
       state.running=true; state._autoResume=false; last=now(); loop();
     }
   }, {passive:true});
+  function drawWatermark(){
+    const t = (META.author ? META.author : '') + (META.version ? ' • ' + META.version : '');
+    if (!t) return;
+    ctx.save();
+    ctx.globalAlpha = .65;
+    ctx.fillStyle = '#93a4c3';
+    ctx.font = '12px system-ui,Segoe UI,Roboto,Arial';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(t, 8, H - 8);
+    ctx.restore();
+  }
 
   /* =============== Main Loop (adaptive FPS & DPR + tier) =============== */
   function draw(){
@@ -1271,6 +1286,8 @@ window.addEventListener('pageshow', initMeta, {once:true});
   
     ctx.restore();
     drawGauge();
+   
+    drawWatermark(); 
   }
 
 
