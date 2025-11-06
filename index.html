@@ -249,7 +249,30 @@
 <script>
 (() => {
   'use strict';
+/* === Utils đặt lên đầu để dùng ngay === */
+const $ = sel => document.querySelector(sel);
 
+/* META hiển thị góc trái dưới */
+const META = {
+  version : 'v0.9.3',
+  author  : 'Lâm daika'
+};
+
+/* Ghim version & author một cách an toàn, không phụ thuộc thời điểm */
+function initMeta(){
+  const ver = document.getElementById('verLabel');
+  const au  = document.getElementById('authorLabel');
+  if (ver) ver.textContent = META.version;
+  if (au)  au.textContent  = META.author;
+}
+
+/* Gọi ngay + đảm bảo gọi lại khi trang đã tải */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initMeta, {once:true});
+} else {
+  initMeta();
+}
+window.addEventListener('pageshow', initMeta, {once:true});
   /* =============== Config =============== */
   const CONFIG = {
     API_URL: 'https://script.google.com/macros/s/AKfycbznfw8rrffCKv0OObRRc8j6YHKir6dEwpLrG4eNn-Azc3xvg4_UrI3fbUoBRv6Dq-e1DQ/exec',
@@ -265,16 +288,6 @@
       surgeEvery: 300, surgeMs: 3000, graceMs: 1500
     }
   };
-  const META = {
-    version : 'v0.9.3',        // ✔ sửa khi bạn build mới
-    author  : 'Lâm daika'    // ✔ tên/nhóm sáng lập
-  };
-  // ---- Hiển thị version & tác giả ngay khi trang vừa tải ----
-  window.addEventListener('DOMContentLoaded', () => {
-    // dùng document.getElementById cũng được, nhưng $ đã có sẵn ở dưới
-    $('#verLabel').textContent    = META.version;   // v0.9.3
-    $('#authorLabel').textContent = META.author;    // Lâm daika
-  });
 
   const THEME_PRO = true; // true = nền pro, false = nền sạch tối giản
 
@@ -467,13 +480,23 @@
   async function postScore(payload) {
     if (!CONFIG.API_URL) return;
     try {
-      await fetch(CONFIG.API_URL, {
-        method:'POST', mode:'cors', headers:{'Content-Type':'text/plain'},
+      const r = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' }, // giữ simple-request, tránh preflight
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined
-      }).catch(()=>{});
-    } catch (_){}
+        signal: (AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined)
+      });
+      // Không cần đọc body, nhưng log trạng thái để soi nhanh
+      if (!r.ok) console.warn('postScore HTTP', r.status);
+    } catch (err) {
+      console.error('postScore error', err);
+      // Không chặn game, chỉ báo nhẹ
+      const t = document.getElementById('toast');
+      if (t) { t.textContent = 'Không gửi được điểm (CORS/Net)'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1200); }
+    }
   }
+
   async function fetchTop(){
     if (!CONFIG.API_URL) throw 'No API';
     const url = CONFIG.API_URL + '?top=100';
