@@ -1098,7 +1098,8 @@ window.addEventListener('pageshow', initMeta, {once:true});
     state.energy=60; state.shake=0; state.surgeMs=0; state.nextSurge=CONFIG.GAME.surgeEvery;
     state.combo=0; state.comboT=0; state.nearMissCount=0;
     state.grace=CONFIG.GAME.graceMs; state.stage=1; state.lastSlipT=0; $('#stageLabel').textContent='Stage 1';
-    $('#playerName').hidden = true;
+    $('#playerName').hidden = !state.name;
+    $('#playerName').textContent = state.name || '';
     $('#uiHUD').hidden=false; $('#uiStart').hidden=true; $('#uiOver').hidden=true; $('#touchCtrl').hidden=false;
     $('#score').textContent='0'; $('#best').textContent=String(state.best);
     lastGaugePct=-1; drawGauge();
@@ -1113,6 +1114,8 @@ window.addEventListener('pageshow', initMeta, {once:true});
     $('#playerName').hidden      = !name;
   
     resetGame();
+    $('#playerName').hidden = !state.name;
+    $('#playerName').textContent = state.name || '';
     loop();
     if ($('#optBgm').checked) AudioKit.startBgm(); else AudioKit.stopBgm();
   }
