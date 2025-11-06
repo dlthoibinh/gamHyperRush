@@ -1376,6 +1376,15 @@ setTimeout(initMeta, 500);
   }
   .empty{padding:14px 16px;opacity:.8}
   @media (min-width:768px){ .top-sheet .panel{left:50%;transform:translateX(-50%);max-width:520px}}
+  /* Close button for TopSheet */
+  .top-sheet .btn-close{
+    position:absolute; right:10px; top:10px;
+    width:36px; height:36px; border-radius:999px;
+    border:1px solid #1f2a44; background:#0b1326; color:#93a4c3;
+    font-size:20px; line-height:34px; text-align:center; cursor:pointer;
+  }
+  .top-sheet .btn-close:active{ transform:translateY(1px); }
+
 </style>
 
 <div id="topSheet" class="top-sheet" aria-hidden="true">
@@ -1383,6 +1392,8 @@ setTimeout(initMeta, 500);
   <div class="panel" role="dialog" aria-modal="true" aria-labelledby="topTitle">
     <div class="hdr">
       <div class="handle"></div>
+      <button class="btn-close" aria-label="Đóng bảng" onclick="TopSheet.close()">×</button>
+
       <h3 id="topTitle">Bảng xếp hạng hôm nay</h3>
       <div class="tools">
         <input id="topSearch" placeholder="Tìm tên / quốc gia…">
