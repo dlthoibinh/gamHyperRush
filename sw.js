@@ -1,5 +1,5 @@
 /* HyperRush SW — static/dynamic cache */
-const STATIC_CACHE = 'static-v17';
+const STATIC_CACHE = 'static-v18';
 const DYNAMIC_CACHE = 'dynamic';
 const STATIC_ASSETS = [
   './',
