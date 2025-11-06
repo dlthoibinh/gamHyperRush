@@ -240,13 +240,7 @@
       <button id="btnR">▶</button>
     </div>
 
-    <div id="topPanel" class="ui" hidden>
-      <div class="card">
-        <h1>Bảng xếp hạng TOP</h1>
-        <div id="topList" class="small">Đang tải…</div>
-        <div class="row mt8"><button id="btnCloseTop">Đóng</button></div>
-      </div>
-    </div>
+
   </div>
 
 <script>
@@ -292,6 +286,7 @@ setTimeout(initMeta, 500);
       surgeEvery: 300, surgeMs: 3000, graceMs: 1500
     }
   };
+  window.CONFIG = CONFIG;
 
   const THEME_PRO = true; // true = nền pro, false = nền sạch tối giản
 
@@ -1195,27 +1190,10 @@ setTimeout(initMeta, 500);
   const lastName=localStorage.getItem('hrfz_last_name'); if (lastName) $('#name').value=lastName;
 
   // ui.js – sự kiện nút “Top 10”
-  $('#btnTop').addEventListener('click', async () => {
-    $('#topPanel').hidden = false;
-    $('#topList').textContent = 'Đang tải…';
 
-    try {
-      const data  = await fetchTop();              // back-end trả về {items:[…]}
-      const items = Array.isArray(data) ? data     // nếu backend đã thay đổi
-                                        : (data.items || []);
 
-      $('#topList').innerHTML = items.length
-        ? '<ol>' + items.map(x =>
-            `<li>${x.name || 'NoName'} — <b>${x.score}</b></li>`).join('') +
-          '</ol>'
-        : 'Chưa có dữ liệu.';
-    } catch (err) {
-      console.error(err);
-      $('#topList').textContent = 'Lỗi tải bảng điểm.';
-    }
-  });
+  document.getElementById('btnTop').onclick = () => TopSheet.open();
 
-  $('#btnCloseTop').addEventListener('click', ()=>$('#topPanel').hidden=true);
 
   $('#btnTut').addEventListener('click', ()=>$('#tut').hidden=false);
   $('#btnOkTut').addEventListener('click', ()=>{ $('#tut').hidden=true; localStorage.setItem('hrfz_seen_tut','1'); });
