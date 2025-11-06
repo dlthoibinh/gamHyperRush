@@ -164,7 +164,7 @@
 <body>
   <div id="wrap">
     <canvas id="game" width="360" height="640" aria-label="HyperRush Freeze"></canvas>
-    <div id="aboutBar" hidden>
+    <div id="aboutBar">
       <span id="verLabel"></span> • <span id="authorLabel"></span>
     </div>
     <div id="uiStart" class="ui" role="dialog" aria-modal="true">
@@ -269,6 +269,12 @@
     version : 'v0.9.3',        // ✔ sửa khi bạn build mới
     author  : 'Lâm daika'    // ✔ tên/nhóm sáng lập
   };
+  // ---- Hiển thị version & tác giả ngay khi trang vừa tải ----
+  window.addEventListener('DOMContentLoaded', () => {
+    // dùng document.getElementById cũng được, nhưng $ đã có sẵn ở dưới
+    $('#verLabel').textContent    = META.version;   // v0.9.3
+    $('#authorLabel').textContent = META.author;    // Lâm daika
+  });
 
   const THEME_PRO = true; // true = nền pro, false = nền sạch tối giản
 
