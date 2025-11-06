@@ -246,8 +246,8 @@
       lanes: 3, baseSpeed: 135, accel: 0.06,
       spawnEvery: 740, spawnAccel: 0.986,
       minSpawnEvery: 220, maxSpawnsPerFrame: 6,
-      orbChance: 0.22, freezeRate: 0.45, regenPassive: 0.006,
-      regenNear: 6, regenOrb: 10, freezeSlow: 0.35,
+      orbChance: 0.30, freezeRate: 0.28, regenPassive: 0.002,
+      regenNear: 6, regenOrb: 10, freezeSlow: 0.40,
       minGapObPx: 148, minGapOrbPx: 118, minGapMixPx: 130, maxSpawnAttempts: 3,
       surgeEvery: 300, surgeMs: 3000, graceMs: 1500
     }
@@ -256,9 +256,10 @@
 
   const TIERS = {
     base:{ maxEntities:120, maxParticles:180, minSpawnEvery:220, cap:6,  roadStep:40,  dprAdj:0 },
-    mid: { maxEntities:95,  maxParticles:90,  minSpawnEvery:280, cap:4,  roadStep:56,  dprAdj:-0.15 },
-    low: { maxEntities:80,  maxParticles:60,  minSpawnEvery:320, cap:3,  roadStep:72,  dprAdj:-0.30 }
+    mid :{ maxEntities:80,  maxParticles:90,  minSpawnEvery:280, cap:4,  roadStep:56,  dprAdj:-0.15 }, // ↓ 95 ➜ 80
+    low :{ maxEntities:60,  maxParticles:60,  minSpawnEvery:320, cap:3,  roadStep:72,  dprAdj:-0.30 }  // ↓ 80 ➜ 60
   };
+
   /* ===== Anti-exploit ===== */
   /* ===== Anti-exploit (tinh chỉnh) ===== */
   const ANTI = {
@@ -353,6 +354,18 @@
       if ((y0 - e.y) > -need) return false; // chưa đủ khoảng cách
     }
     return true;
+  }
+  // --- Utils tránh spawn "bịt 3 cột" ---
+  function rowBlocked(y0){
+    // quét ±minGapObPx quanh toạ độ Y chuẩn bị spawn
+    const band = CONFIG.GAME.minGapObPx;
+    const occ  = new Array(CONFIG.GAME.lanes).fill(false);
+  
+    for (const e of state.entities){
+      if (e.type !== 'ob') continue;               // chỉ xét obstacle
+      if (Math.abs(e.y - y0) <= band) occ[e.lane] = true;
+    }
+    return occ.every(Boolean);                    // true = cả 3 lane đã kín
   }
 
   function makeSpawnTable(base, accel, minMs, limit=4096){
@@ -574,7 +587,7 @@
     const s = Math.floor(state.score/CONFIG.GAME.surgeEvery)+1;
     if (s!==state.stage){
       state.stage=s; $('#stageLabel').textContent=`Stage ${state.stage}`;
-      CONFIG.GAME.orbChance = clamp(0.22 - 0.01*(state.stage-1), 0.12, 0.22);
+      CONFIG.GAME.orbChance = Math.max(0.18, 0.30 - 0.01*(state.stage-1));
       CONFIG.GAME.minGapObPx = clamp(148 - 4*(state.stage-1), 120, 148);
       if (now()-state.lastStageAnnounce>2000){ toast(`Stage ${state.stage}!`); AudioKit.sfx('taunt'); }
       state.lastStageAnnounce=now();
@@ -832,14 +845,12 @@
       const jitter = (state.rng() * 2 - 1) * ANTI.spawnJitter;
       const y0 = -40 + jitter;                     // 👈 đổi dấu ±
   
-      if (okGapForLane(lane, type, y0)){           // đủ khoảng cách?
-        if (type === 'ob'){
-          const sug = corridorSuggest(y0);
-          if (sug !== -1){ lane = sug; if (DBG) toast('CORRIDOR'); }
-        }
-        state.entities.push({ type, lane, y: y0, nearDone: false });
+      if (okGapForLane(lane, type, y0) &&
+          (type !== 'ob' || !rowBlocked(y0))){       // ✨ NEW chốt an toàn
+        state.entities.push({type, lane, y:y0, nearDone:false});
         return;
       }
+
       lane = (lane + 1) % CONFIG.GAME.lanes;       // thử làn khác
     } while (++tries < CONFIG.GAME.maxSpawnAttempts);
   }
