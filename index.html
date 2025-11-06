@@ -245,8 +245,8 @@
       lanes: 3, baseSpeed: 135, accel: 0.06,
       spawnEvery: 740, spawnAccel: 0.986,
       minSpawnEvery: 220, maxSpawnsPerFrame: 6,
-      orbChance: 0.22, freezeRate: 0.28, regenPassive: 0.003,
-      regenNear: 6, regenOrb: 10, freezeSlow: 0.25,
+      orbChance: 0.22, freezeRate: 0.45, regenPassive: 0.003,
+      regenNear: 4, regenOrb: 6, freezeSlow: 0.25,
       minGapObPx: 148, minGapOrbPx: 118, minGapMixPx: 130, maxSpawnAttempts: 3,
       surgeEvery: 300, surgeMs: 3000, graceMs: 1500
     }
@@ -613,9 +613,16 @@
 
     if (state.grace>0) state.grace = Math.max(0, state.grace - dt);
 
-    state.energy = state.holding && state.energy>0
-      ? Math.max(0, state.energy - CONFIG.GAME.freezeRate * (dt/10))
-      : Math.min(100, state.energy + CONFIG.GAME.regenPassive * (dt/10));
+    const passive = state.holding ? 0 : CONFIG.GAME.regenPassive * (dt/10);
+    state.energy = Math.min(
+        100,
+        (state.holding
+            ? state.energy - CONFIG.GAME.freezeRate * (dt/10)   // đang Freeze → hao
+            : state.energy                                      // không Freeze → giữ nguyên
+        )
+        + passive                                               // chỉ hồi khi không Freeze
+    );
+
     drawEnergyBar();
     /* --- Death on zero energy --- */
     if (state.energy <= 0){
@@ -705,6 +712,7 @@
           state.score += 4 * state.combo;
           toast(state.combo>1 ? `NEAR-MISS x${state.combo} +${bonus}%` : `NEAR-MISS +${CONFIG.GAME.regenNear}%`);
           state.lastNearT = now(); AudioKit.sfx('near'); vibrate(10);
+          e.nearDone = true;
         }
 
         if (collided) {
@@ -719,6 +727,7 @@
         if (e.lane===R && Math.abs(ey - py) < 34) eRnear = e;
       }
 
+      if (e.y - py > HIT.OB_H) e.nearDone = false;
       if (e.y > H+50) state.entities.splice(i,1);
     }
 
@@ -817,7 +826,7 @@
           const sug = corridorSuggest(y0);
           if (sug !== -1){ lane = sug; if (DBG) toast('CORRIDOR'); }
         }
-        state.entities.push({ type, lane, y: y0 });
+        state.entities.push({ type, lane, y: y0, nearDone: false });
         return;
       }
       lane = (lane + 1) % CONFIG.GAME.lanes;       // thử làn khác
