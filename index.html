@@ -164,7 +164,9 @@
 <body>
   <div id="wrap">
     <canvas id="game" width="360" height="640" aria-label="HyperRush Freeze"></canvas>
-
+    <div id="aboutBar" hidden>
+      <span id="verLabel"></span> • <span id="authorLabel"></span>
+    </div>
     <div id="uiStart" class="ui" role="dialog" aria-modal="true">
       <div class="card">
         <h1>HyperRush — Freeze</h1>
@@ -180,13 +182,11 @@
         <p class="hint">PC: A/D hoặc ← →; Space = Freeze • Mobile: vuốt liên tục, chạm trái/phải để đổi làn nhanh.</p>
         <div class="small">Bản đồ thay đổi mỗi ngày. Cố gắng vượt 2.500!</div>
         <div class="row-small">
-          <button id="btnTop">Top 10 ngày</button>
+          <button id="btnTop">Top 100 ngày</button>
           <button id="btnTut">Hướng dẫn</button>
         </div>
       </div>
-      <div id="aboutBar" hidden>
-        <span id="verLabel"></span> • <span id="authorLabel"></span>
-      </div>
+
     </div>
 
     <div id="uiHUD" class="hud" hidden>
@@ -470,7 +470,7 @@
   }
   async function fetchTop(){
     if (!CONFIG.API_URL) throw 'No API';
-    const url = CONFIG.API_URL + '?top=10';
+    const url = CONFIG.API_URL + '?top=100';
     const r = await fetch(url, {mode:'cors', signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined});
     return await r.json();
   }
