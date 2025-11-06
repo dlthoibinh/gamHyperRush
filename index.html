@@ -537,7 +537,7 @@ setTimeout(initMeta, 500);
 
 
   async function fetchTop(){
-    const url = CONFIG.API_URL + '?top=100';
+    const url = CONFIG.API_URL + '?top=10';
     try {
       const r = await fetch(url, {
         mode: 'cors',
