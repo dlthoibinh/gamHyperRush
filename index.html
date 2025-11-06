@@ -1020,7 +1020,7 @@ setTimeout(initMeta, 500);
     if (state.entities.length >= CONFIG.PERF.maxEntities) return;
 
     // 60s đầu (+ đến khi đạt 200 điểm): hầu như toàn Orb để làm quen
-    const early = ((now() - state.startedAt) < 60000) || (state.score < 200);
+    const early = ((now() - state.startedAt) < 20000) || (state.score < 100);
     const type  = (state.rng() < (early ? 0.60 : CONFIG.GAME.orbChance)) ? 'orb' : 'ob';
     if (early && type === 'ob') return; // mở đầu: hạn chế obstacle
 
