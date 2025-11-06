@@ -1084,12 +1084,7 @@
   function startFromUI(){
     const name = $('#name').value.trim().slice(0,16);
     state.name  = name;
-    if (name) localStorage.setItem('hrfz_last_name', name);
-    $('#verLabel').textContent    = META.version;
-    $('#authorLabel').textContent = META.author;
-    $('#aboutBar').hidden = false;             // hiện thanh thông tin
-
-  
+    if (name) localStorage.setItem('hrfz_last_name', name);  
     /* NEW: hiển thị pill tên */
     $('#playerName').textContent = name || 'Không Tên';
     $('#playerName').hidden      = !name;
