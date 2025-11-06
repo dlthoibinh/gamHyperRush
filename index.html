@@ -498,11 +498,28 @@ window.addEventListener('pageshow', initMeta, {once:true});
   }
 
   async function fetchTop(){
-    if (!CONFIG.API_URL) throw 'No API';
     const url = CONFIG.API_URL + '?top=100';
-    const r = await fetch(url, {mode:'cors', signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined});
-    return await r.json();
+    try {
+      const r = await fetch(url, {
+        mode: 'cors',
+        signal: (AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined)
+      });
+      return await r.json();                       // {items:[...]}
+    } catch (err) {
+      // Fallback JSONP: không cần CORS
+      return new Promise((resolve, reject) => {
+        const cb = 'hr_cb_' + Math.random().toString(36).slice(2);
+        window[cb] = (data) => { try{ delete window[cb]; }catch(_){}
+                              s.remove(); resolve(data); };
+        const s = document.createElement('script');
+        s.src = CONFIG.API_URL + '?top=100&fmt=js&cb=' + cb;
+        s.onerror = () => { try{ delete window[cb]; }catch(_){}
+                            s.remove(); reject(new Error('jsonp_error')); };
+        document.head.appendChild(s);
+      });
+    }
   }
+
 
   /* =============== Game State =============== */
   const canvas = $('#game'); 
