@@ -255,6 +255,7 @@
       <div class="pill">Điểm: <span id="score">0</span></div>
       <div class="pill">Best: <span id="best">0</span></div>
       <div class="pill small" id="stageLabel">Stage 1</div>
+      <div class="pill small" id="multLabel">x1.0</div>
       <div class="pill small" id="playerName" hidden></div>
         <!-- Energy bar -->
       <div id="energyWrap">
@@ -695,6 +696,10 @@ setTimeout(initMeta, 500);
     gfxTier:0, _tierLockT:0, frame:0,
     lastSlipT:0,    
     energyEmptyT: 0, 
+    dirMul: 1.0,        // hệ số đạo diễn nhịp spawn
+    _lowEnergyWarned: false,
+    _surgeWarned: false,
+
     lastLaneChangeT: now(),      // lần gần nhất đổi làn nguyên
     _laneI: 1,                   // làn nguyên hiện tại (để so sánh)
     _antiCampT: 0,               // cooldown anti-camp
@@ -782,6 +787,11 @@ setTimeout(initMeta, 500);
   }
   // Ghi lại “khe cơ bản” ngay sau CONFIG
   const MIN_GAP_BASE = CONFIG.GAME.minGapObPx;
+  function scoreMultiplier(){
+    // mỗi near-miss trong 1.2s tăng 0.1x, tối đa x2.5
+    const active = (now()-state.comboT < 1200) ? state.combo : 0;
+    return clamp(1 + 0.10*Math.min(15, active), 1, 2.5);
+  }
 
   function applyStages(){
     const s = Math.floor(state.score / CONFIG.GAME.surgeEvery) + 1;
@@ -872,7 +882,13 @@ setTimeout(initMeta, 500);
     // 4) Cập nhật năng lượng
     state.energy = clamp(state.energy - drain + passive, 0, 100);
     drawEnergyBar();
-    
+    // === Low-energy beep (feedback cảm xúc) ===
+    if (!state._lowEnergyWarned && state.energy < 15){
+      AudioKit.sfx('taunt'); state._lowEnergyWarned = true;
+    }
+    if (state._lowEnergyWarned && state.energy > 22){
+      state._lowEnergyWarned = false;
+    }
     // 5) Nếu vừa cạn trong lúc giữ → khóa Freeze cho tới khi hồi ≥ rearmPct
     if (canFreeze && state.energy <= 0) {
       state.freezeLocked = true;
@@ -889,8 +905,10 @@ setTimeout(initMeta, 500);
 
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
     state.spawnIdx += dtEff/16.6;
-    const spawnEvery = SPAWN_TABLE[Math.min(SPAWN_TABLE.length-1, state.spawnIdx|0)];
-    state.score += dtEff * 0.06 * ( (state.lastNearT && (now()-state.lastNearT<1200)) ? 1.15 : 1 );
+    const spawnEveryBase = SPAWN_TABLE[Math.min(SPAWN_TABLE.length-1, state.spawnIdx|0)];
+    const spawnEvery = spawnEveryBase * state.dirMul;
+    state.score += dtEff * 0.06 * scoreMultiplier();
+    $('#multLabel').textContent = 'x' + scoreMultiplier().toFixed(1);
     $('#score').textContent = String(Math.floor(state.score));
 
     smoothLane(dtEff);
@@ -918,6 +936,22 @@ setTimeout(initMeta, 500);
     }
 
     applyStages();
+    // === Dynamic Director ===
+    const TARGET = 0.55;
+    const t = computeTension();
+    const err = t - TARGET;
+    state.dirMul = clamp(1 + err*0.6, 0.8, 1.25);  // >1 căng → thưa hơn
+    
+    // Nới khe khi quá căng; thu khe khi quá dễ (nhẹ tay)
+    const baseGap = MIN_GAP_BASE;                   // đã lưu ở code của anh
+    const adj = (err>0 ? 10*err : -6*Math.abs(err));
+    CONFIG.GAME.minGapObPx = clamp(baseGap + adj, baseGap - 18, baseGap + 18);
+    
+    // Cảnh báo “cửa hẹp” sắp tới
+    if (!state._surgeWarned && (state.nextSurge - state.score) <= 60) {
+      toast('Sắp cửa hẹp!'); state._surgeWarned = true;
+    }
+    if (state.surgeMs === 0 && state.score < state.nextSurge - 60) state._surgeWarned = false;
 
     if (state.score >= state.nextSurge){ state.surgeMs = CONFIG.GAME.surgeMs; state.nextSurge += CONFIG.GAME.surgeEvery; toast('Cửa hẹp 3s!'); AudioKit.sfx('taunt'); }
     if (state.surgeMs>0) state.surgeMs = Math.max(0, state.surgeMs - dt);
@@ -1092,6 +1126,13 @@ setTimeout(initMeta, 500);
 
       lane = (lane + 1) % CONFIG.GAME.lanes;       // thử làn khác
     } while (++tries < CONFIG.GAME.maxSpawnAttempts);
+  }
+  function computeTension(){
+    // 0..1: 0 = rất thư thái, 1 = cực căng
+    const e = 1 - clamp(state.energy/100, 0, 1);                      // ít năng lượng → căng
+    const nm = Math.max(0, 1 - (now() - (state.lastNearT||0))/1200);   // vừa near-miss → căng
+    const sp = clamp((state.speed - CONFIG.GAME.baseSpeed) / (CONFIG.GAME.baseSpeed*1.8 - CONFIG.GAME.baseSpeed), 0, 1);
+    return clamp(0.5*e + 0.35*nm + 0.15*sp, 0, 1);
   }
 
 
