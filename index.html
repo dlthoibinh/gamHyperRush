@@ -341,30 +341,30 @@ setTimeout(initMeta, 500);
     // ↓ Nhịp game chậm hơn, rộng đường hơn, hồi năng lượng dễ thở hơn
     GAME: {
       lanes: 3,
-      baseSpeed: 110,          // 135 → 110
-      accel: 0.035,            // 0.06 → 0.035 (lên tốc chậm)
-      spawnEvery: 880,         // 740 → 880 (spawn thưa)
-      spawnAccel: 0.994,       // 0.986 → 0.994 (chậm siết nhịp)
-      minSpawnEvery: 320,      // 220 → 320
-      maxSpawnsPerFrame: 4,    // 6 → 4
-
-      orbChance: 0.38,         // 0.30 → 0.38 (thêm Orb)
-      freezeRate: 0.26,        // 0.28 → 0.26 (hao chậm hơn)
-      regenPassive: 0.0055,    // 0.002 → 0.0055 (không Freeze vẫn hồi tốt)
-      regenNear: 8,            // 6 → 8
-      regenOrb: 14,            // 10 → 14
-      freezeSlow: 0.45,        // 0.40 → 0.45 (Freeze hiệu quả hơn)
-
-      // Khe rộng hơn đáng kể
-      minGapObPx: 160,         // 148 → 160
-      minGapOrbPx: 130,        // 118 → 130
-      minGapMixPx: 150,        // 130 → 150
-
-      maxSpawnAttempts: 4,     // 3 → 4 (dễ tìm được vị trí spawn an toàn)
-      surgeEvery: 400,         // 300 → 400 (lâu mới “cửa hẹp”)
-      surgeMs: 2600,           // 3000 → 2600 (ngắn bớt, đỡ stress)
-      graceMs: 2000            // 1500 → 2000 (miễn va đụng đầu ván lâu hơn)
+      baseSpeed: 110,
+      accel: 0.035,
+      spawnEvery: 880,
+      spawnAccel: 0.994,
+      minSpawnEvery: 320,
+      maxSpawnsPerFrame: 4,
+    
+      orbChance: 0.38,
+      freezeRate: 0.08,         // ⬅️ 0.26  →  0.08  (~8%/giây, thoải mái hơn)
+      regenPassive: 0.012,      // ⬅️ 0.0055 →  0.012 (~1.2%/giây khi KHÔNG giữ)
+      regenNear: 10,            // ⬅️ 8   →  10  (sượt gần hồi sướng hơn)
+      regenOrb: 18,             // ⬅️ 14  →  18
+      freezeSlow: 0.50,         // ⬆️ 0.45 → 0.50 (Freeze hiệu quả hơn chút)
+    
+      minGapObPx: 160,
+      minGapOrbPx: 130,
+      minGapMixPx: 150,
+    
+      maxSpawnAttempts: 4,
+      surgeEvery: 400,
+      surgeMs: 2600,
+      graceMs: 2000
     }
+
   };
   window.CONFIG = CONFIG;
 
@@ -399,6 +399,15 @@ setTimeout(initMeta, 500);
 
   const LOW = (navigator.hardwareConcurrency && navigator.hardwareConcurrency<=4);
   if (LOW){ CONFIG.PERF.dprMax=1.2; CONFIG.PERF.maxParticles=140; }
+  /* ===== Freeze UX ===== */
+  const FREEZE = {
+    minToStart: 6,         // <6% thì KHÔNG cho bật Freeze (tránh “bấm là cạn”)
+    freeMs: 180,           // 180ms đầu MIỄN PHÍ hao năng lượng
+    rampMs: 900,           // sau đó tăng dần mức hao trong 0→900ms
+    rampMin: 0.35,         // mức hao ban đầu = 35% của freezeRate
+    rearmPct: 14,          // khi tụt 0% thì phải hồi lại ≥14% mới cho bật lại
+    warnCooldownMs: 1200   // chống spam thông báo
+  };
 
   /* =============== Utils =============== */
 
@@ -667,6 +676,11 @@ setTimeout(initMeta, 500);
     playerY: H * 0.6,
     entities: [],
     energy: 60,
+    holdStartT: 0,
+    lastHoldEndT: 0,
+    freezeWarnT: 0,
+    freezeLocked: false,
+
     holding:false,
     lastNearT: 0,
     shake: 0,
@@ -718,7 +732,7 @@ setTimeout(initMeta, 500);
     if (state.dragging) return;
     state.dragging=true; state.dragStartX=e.clientX; state.dragStartLane=state.desiredLane; state.dragStartT=now();
     state.hasDragged=false; canvas.setPointerCapture?.(e.pointerId);
-    state.holding=true; await AudioKit.prepare(); AudioKit.unlock(); AudioKit.sfx('freeze_on'); e.preventDefault();
+    state.holding=true; state.holdStartT = now(); await AudioKit.prepare(); AudioKit.unlock(); AudioKit.sfx('freeze_on'); e.preventDefault();
     state.lastDragT = now(); 
   }, {passive:false});
   canvas.addEventListener('pointermove', (e)=>{
@@ -738,6 +752,7 @@ setTimeout(initMeta, 500);
     if (!state.hasDragged && dtTap<=TAP_TIME_MAX && dx<DRAG_PX_THRESHOLD){
       const r=canvas.getBoundingClientRect(); stepLane(e.clientX < r.left+r.width/2 ? -1 : 1);
     }
+    state.lastHoldEndT = now();
     state.dragging=false; state.holding=false; e.preventDefault();
   }
   canvas.addEventListener('pointerup', endPointer, {passive:false});
@@ -823,28 +838,54 @@ setTimeout(initMeta, 500);
 
     if (state.grace>0) state.grace = Math.max(0, state.grace - dt);
 
-    const passive = state.holding ? 0 : CONFIG.GAME.regenPassive * (dt/10);
-    state.energy = Math.min(
-        100,
-        (state.holding
-            ? state.energy - CONFIG.GAME.freezeRate * (dt/10)   // đang Freeze → hao
-            : state.energy                                      // không Freeze → giữ nguyên
-        )
-        + passive                                               // chỉ hồi khi không Freeze
-    );
-
-    drawEnergyBar();
-    /* --- Death on zero energy --- */
-    if (state.energy <= 0){
-      if (!state.energyEmptyT) state.energyEmptyT = now();           // đánh dấu
-      else if (now() - state.energyEmptyT > 5000){                   // >2 s
-        toast('Kiệt sức!');
-        boom(); AudioKit.sfx('hit'); vibrate([60,40,100]);
-        return gameOver();
-      }
-    }else{
-      state.energyEmptyT = 0;  // reset khi có năng lượng lại
+    /* ===== Energy model (Freeze dễ chịu) ===== */
+    let canFreeze = state.holding;
+    
+    // 0) Nếu đang bị “khóa” vì cạn, buộc phải hồi tới rearmPct mới cho giữ again
+    if (state.freezeLocked) {
+      if (state.energy >= FREEZE.rearmPct) state.freezeLocked = false;
+      else canFreeze = false;
     }
+    
+    // 1) Nếu năng lượng thấp hơn ngưỡng bật, không cho giữ (tránh vừa bấm đã tụt mạnh)
+    if (canFreeze && state.energy < FREEZE.minToStart) {
+      canFreeze = false;
+      if (now() - state.freezeWarnT > FREEZE.warnCooldownMs) {
+        toast(`Năng lượng thấp (<${FREEZE.minToStart}%). Thả để hồi.`);
+        state.freezeWarnT = now();
+      }
+    }
+    
+    // 2) Tính hao theo ramp (miễn phí freeMs đầu, rồi ramp tới 100%)
+    let drain = 0;
+    if (canFreeze) {
+      const tHold = now() - (state.holdStartT || now());
+      const afterFree = Math.max(0, tHold - FREEZE.freeMs);
+      const k = Math.min(1, afterFree / FREEZE.rampMs);     // 0→1 trong rampMs
+      const rampFactor = FREEZE.rampMin + (1 - FREEZE.rampMin) * k;
+      drain = CONFIG.GAME.freezeRate * rampFactor * (dt / 10);
+    }
+    
+    // 3) Hồi tự nhiên khi KHÔNG giữ
+    const passive = (!canFreeze) ? CONFIG.GAME.regenPassive * (dt / 10) : 0;
+    
+    // 4) Cập nhật năng lượng
+    state.energy = clamp(state.energy - drain + passive, 0, 100);
+    drawEnergyBar();
+    
+    // 5) Nếu vừa cạn trong lúc giữ → khóa Freeze cho tới khi hồi ≥ rearmPct
+    if (canFreeze && state.energy <= 0) {
+      state.freezeLocked = true;
+      state.holding = false;
+      state.lastHoldEndT = now();
+      if (now() - state.freezeWarnT > FREEZE.warnCooldownMs) {
+        toast(`Kiệt sức! Đợi hồi ≥${FREEZE.rearmPct}% để Freeze.`);
+        state.freezeWarnT = now();
+      }
+    }
+    
+    // ❌ BỎ cơ chế “chết vì hết năng lượng” (chỉ khóa Freeze).
+
 
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
     state.spawnIdx += dtEff/16.6;
