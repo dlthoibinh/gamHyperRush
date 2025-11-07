@@ -573,9 +573,11 @@
     gcv.width  = Math.round(96 * DPR);
     gcv.height = Math.round(96 * DPR);
     gctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawGauge();
+    // tránh gọi khi state chưa được khởi tạo
+    if (window.state) drawGauge();
   }
-  fitGaugeDPI();
+
+ 
 
   const energyFill = $('#energyFill');
 
@@ -614,6 +616,7 @@
     lastLaneChangeT: now(), _laneI: 1, _antiCampT: 0,
   };
   window.state = state; // expose cho TopSheet
+  fitGaugeDPI();
 
   /* =============== Particles =============== */
   function spawnParticles(x,y,color,count=12,spd=1){
@@ -1140,6 +1143,7 @@
 
   let lastGaugePct=-1;
   function drawGauge(){
+    if (typeof state === 'undefined') return;
     const pct = Math.floor(clamp(state.energy,0,100));
     if (pct === lastGaugePct) return; lastGaugePct=pct;
     const c=gctx; const w=gcv.width, h=gcv.height; c.clearRect(0,0,w,h);
