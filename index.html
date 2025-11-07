@@ -236,7 +236,7 @@
     position:absolute; right:14px; top:12px; width:36px; height:36px; border-radius:999px; border:0;
     background:rgba(2,6,23,.6); color:#e5f0ff; font-size:18px; cursor:pointer; border:1px solid rgba(148,163,184,.18);
   }
-
+  #cntDown{ justify-content:center; min-width:64px; }
 
   </style>
 </head>
@@ -347,6 +347,19 @@
   'use strict';
 /* === Utils đặt lên đầu để dùng ngay === */
 const $ = sel => document.querySelector(sel);
+// == Countdown HUD helpers (robust) ==
+const _cntEl = document.getElementById('cntDown');
+function showCountdown(sec){
+  if (!_cntEl) return;
+  _cntEl.removeAttribute('hidden');     // bỏ [hidden]
+  _cntEl.style.display = 'inline-flex'; // ép hiển thị trong .hud
+  _cntEl.textContent = `⚠ ${sec}s`;
+}
+function hideCountdown(){
+  if (!_cntEl) return;
+  _cntEl.setAttribute('hidden', '');    // ẩn lại
+  _cntEl.style.display = '';            // trả về mặc định theo CSS
+}
 
 /* META hiển thị góc trái dưới */
 const META = { version: '', author: '' };
@@ -995,52 +1008,58 @@ setTimeout(initMeta, 500);
     }
     
     /* ===== Death-by-Fatigue: hết năng lượng → đếm ngược 10s ===== */
+    /* ===== Death-by-Fatigue: hết năng lượng → đếm ngược 10s ===== */
     if (ENERGY_DEATH.enable) {
-      const pill = document.getElementById('cntDown');
     
       if (state.energy <= 0) {
         // bắt đầu hoặc tiếp tục countdown
         if (!state.energyZeroT) {
-          state.energyZeroT   = now();
-          state.energyCntRemain = ENERGY_DEATH.windowMs;
-          state._secLeft = undefined;          // force cập nhật ngay
-          pill.hidden = false;
+          state.energyZeroT      = now();
+          state.energyCntRemain  = ENERGY_DEATH.windowMs; // ms
+          state._secLeft         = undefined;             // force cập nhật ngay
+          showCountdown(Math.ceil(state.energyCntRemain / 1000));
           toast(`Hết năng lượng! ${ENERGY_DEATH.windowMs/1000}s để hồi ≥${ENERGY_DEATH.revivePct}%`);
+          if (DBG) console.debug('[fatigue] start 10s window');
         } else {
           state.energyCntRemain = Math.max(0, state.energyCntRemain - dt);
         }
     
-        // cập nhật pill hiển thị (mỗi khi số giây đổi)
+        // cập nhật HUD mỗi khi số giây đổi
         const secLeft = Math.ceil(state.energyCntRemain / 1000);
         if (secLeft !== state._secLeft) {
           state._secLeft = secLeft;
-          pill.textContent = `⚠ ${secLeft}s`;
-          // beep nhẹ để tạo áp lực (tận dụng sfx có sẵn)
+          showCountdown(secLeft);      // 👈 luôn dùng helper để đảm bảo hiển thị
           AudioKit.sfx('taunt');
         }
     
-        // nếu kịp hồi vượt ngưỡng → hủy countdown
+        // kịp hồi vượt ngưỡng → huỷ countdown
         if (state.energy >= ENERGY_DEATH.revivePct) {
           state.energyZeroT = 0;
           state.energyCntRemain = 0;
           state._secLeft = undefined;
-          pill.hidden = true;
+          hideCountdown();
+          if (DBG) console.debug('[fatigue] recovered >= revivePct → cancel');
         }
         // hết giờ mà vẫn chưa hồi đủ → thua vì kiệt sức
         else if (state.energyCntRemain <= 0) {
           state.deathReason = 'fatigue';
+          hideCountdown();
+          if (DBG) console.debug('[fatigue] timeout → gameOver');
           return gameOver();
         }
+    
       } else {
-        // đang >0% năng lượng
+        // đang >0% năng lượng: nếu từng vào countdown thì xét điều kiện huỷ
         if (state.energyZeroT && state.energy >= ENERGY_DEATH.revivePct) {
           state.energyZeroT = 0;
           state.energyCntRemain = 0;
           state._secLeft = undefined;
-          pill.hidden = true;
+          hideCountdown();
+          if (DBG) console.debug('[fatigue] cleared while >0% and >= revivePct');
         }
       }
     }
+
 
 
 
@@ -1484,7 +1503,7 @@ setTimeout(initMeta, 500);
     state.energyCntRemain = 0;
     state._secLeft = undefined;
     state.deathReason = '';
-    const _pill = document.getElementById('cntDown'); if (_pill) _pill.hidden = true;
+    hideCountdown();
 
     state.grace=CONFIG.GAME.graceMs; state.stage=1; state.lastSlipT=0; $('#stageLabel').textContent='Stage 1';
     $('#playerName').hidden = !state.name;
