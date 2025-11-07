@@ -934,23 +934,30 @@ setTimeout(initMeta, 500);
       }
     }
     
+
     // 2) Tính hao theo ramp (miễn phí freeMs đầu, rồi ramp tới 100%)
+    
+    /* ---- Theo dõi thời gian giữ liên tục ---- */
+    if (state.holding) {
+      state.freezeAccum = (state.freezeAccum || 0) + dt;   // dt = ms khung
+    } else {
+      state.freezeAccum = 0;                               // buông tay => reset
+    }
+    const tHold = state.freezeAccum;                       // tổng ms đã giữ
+    
     let drain = 0;
     if (canFreeze) {
-      if (state.holding) {
-        state.freezeAccum = (state.freezeAccum || 0) + dt;   // dt = ms khung
-      } else {
-        state.freezeAccum = 0;
-      }
-      const tHold = state.freezeAccum;                       // tổng ms đã giữ
-
-      const afterFree = Math.max(0, tHold - FREEZE.freeMs);
-
-      const k = Math.min(1, afterFree / FREEZE.rampMs);
+      /* Ramp sau freeMs */
+      const afterFree  = Math.max(0, tHold - FREEZE.freeMs);
+      const k          = Math.min(1, afterFree / FREEZE.rampMs);
       const rampFactor = FREEZE.rampMin + (1 - FREEZE.rampMin) * k;
+    
       drain = CONFIG.GAME.freezeRate * rampFactor * (dt / 10);
-            // Tăng hao nếu giữ > 6 s liên tục
+    
+      /* Over-heat: giữ > 6 s → hao +30 % */
       if (tHold > 6000) drain *= 1.3;
+    }
+
     
       // ⛔ Giữ giữa 2 làn → tăng hao
       const frac = state.lane - Math.floor(state.lane);
