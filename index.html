@@ -926,13 +926,16 @@ setTimeout(initMeta, 500);
     }
     
     // 1) Nếu năng lượng thấp hơn ngưỡng bật, không cho giữ (tránh vừa bấm đã tụt mạnh)
-    if (canFreeze && state.energy < FREEZE.minToStart) {
+    // Chỉ chặn ở THỜI ĐIỂM BẮT ĐẦU giữ (tránh “đang giữ rồi” mà bị ngắt drain)
+    const justStartedHold = state.holding && (now() - state.holdStartT < 220);
+    if (state.holding && state.energy < FREEZE.minToStart && justStartedHold) {
       canFreeze = false;
       if (now() - state.freezeWarnT > FREEZE.warnCooldownMs) {
         toast(`Năng lượng thấp (<${FREEZE.minToStart}%). Thả để hồi.`);
         state.freezeWarnT = now();
       }
     }
+
     
 
     // 2) Tính hao theo ramp (miễn phí freeMs đầu, rồi ramp tới 100%)
@@ -966,8 +969,10 @@ setTimeout(initMeta, 500);
       }
     
     // 3) Hồi tự nhiên khi KHÔNG giữ
-    const passive = (!canFreeze) ? CONFIG.GAME.regenPassive * (dt / 10) : 0;
-    
+    const passive = (!state.holding && !state.energyZeroT)
+      ? CONFIG.GAME.regenPassive * (dt / 10)
+      : 0;
+        
     // 4) Cập nhật năng lượng
     state.energy = clamp(state.energy - drain + passive, 0, 100);
     drawEnergyBar();
@@ -981,7 +986,7 @@ setTimeout(initMeta, 500);
     // 5) Nếu vừa cạn trong lúc giữ → khóa Freeze cho tới khi hồi ≥ rearmPct
     if (canFreeze && state.energy <= 0) {
       state.freezeLocked = true;
-      state.holding = false;
+      //state.holding = false;
       state.lastHoldEndT = now();
       if (now() - state.freezeWarnT > FREEZE.warnCooldownMs) {
         toast(`Kiệt sức! Đợi hồi ≥${FREEZE.rearmPct}% để Freeze.`);
