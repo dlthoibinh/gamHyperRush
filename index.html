@@ -294,6 +294,7 @@
       <div class="pill">Best: <span id="best">0</span></div>
       <div class="pill small" id="stageLabel">Stage 1</div>
       <div class="pill small" id="multLabel">x1.0</div>
+      <div class="pill small" id="cntDown" hidden>⚠ 10.0s</div>
       <div class="pill small" id="playerName" hidden></div>
         <!-- Energy bar -->
       <div id="energyWrap">
@@ -447,6 +448,9 @@ setTimeout(initMeta, 500);
     rearmPct: 14,          // khi tụt 0% thì phải hồi lại ≥14% mới cho bật lại
     warnCooldownMs: 1200   // chống spam thông báo
   };
+  /* ===== Speed theo Stage & Death-by-Fatigue ===== */
+  const SPEED_STAGE = { perStage: 0.08, max: 280 };   // +8%/stage, trần 280 px/s
+  const ENERGY_DEATH = { enable: true, windowMs: 10000, revivePct: 6 };
 
   /* =============== Utils =============== */
 
@@ -719,6 +723,10 @@ setTimeout(initMeta, 500);
     lastHoldEndT: 0,
     freezeWarnT: 0,
     freezeLocked: false,
+    energyZeroT: 0,             // mốc thời gian bắt đầu cạn năng lượng
+    energyCntRemain: 0,         // ms còn lại của countdown
+    _secLeft: undefined,        // số giây còn lại (để update pill mỗi giây)
+    deathReason: '',            // '' | 'fatigue'
 
     holding:false,
     lastNearT: 0,
@@ -878,6 +886,17 @@ setTimeout(initMeta, 500);
       state._tierLockT = now();
     }
   }
+  function applyStageSpeed(dt) {
+    // speed tối thiểu theo stage: base * (1 + perStage*(stage-1))
+    const targetMin = CONFIG.GAME.baseSpeed * (1 + (state.stage - 1) * SPEED_STAGE.perStage);
+    // tiến dần về targetMin khi speed đang thấp hơn (lerp có gia tốc nhẹ)
+    if (state.speed < targetMin) {
+      const k = Math.min(1, dt / 180);            // dt tính theo ms khung hình hiệu dụng
+      state.speed += (targetMin - state.speed) * (0.18 + 0.62 * k);
+    }
+    // trần tốc độ tuyệt đối
+    state.speed = Math.min(state.speed, SPEED_STAGE.max);
+  }
 
   /* =============== Update =============== */
   function update(dt) {
@@ -938,7 +957,54 @@ setTimeout(initMeta, 500);
       }
     }
     
-    // ❌ BỎ cơ chế “chết vì hết năng lượng” (chỉ khóa Freeze).
+    /* ===== Death-by-Fatigue: hết năng lượng → đếm ngược 10s ===== */
+    if (ENERGY_DEATH.enable) {
+      const pill = document.getElementById('cntDown');
+    
+      if (state.energy <= 0) {
+        // bắt đầu hoặc tiếp tục countdown
+        if (!state.energyZeroT) {
+          state.energyZeroT   = now();
+          state.energyCntRemain = ENERGY_DEATH.windowMs;
+          state._secLeft = undefined;          // force cập nhật ngay
+          pill.hidden = false;
+          toast(`Hết năng lượng! ${ENERGY_DEATH.windowMs/1000}s để hồi ≥${ENERGY_DEATH.revivePct}%`);
+        } else {
+          state.energyCntRemain = Math.max(0, state.energyCntRemain - dt);
+        }
+    
+        // cập nhật pill hiển thị (mỗi khi số giây đổi)
+        const secLeft = Math.ceil(state.energyCntRemain / 1000);
+        if (secLeft !== state._secLeft) {
+          state._secLeft = secLeft;
+          pill.textContent = `⚠ ${secLeft}s`;
+          // beep nhẹ để tạo áp lực (tận dụng sfx có sẵn)
+          AudioKit.sfx('taunt');
+        }
+    
+        // nếu kịp hồi vượt ngưỡng → hủy countdown
+        if (state.energy >= ENERGY_DEATH.revivePct) {
+          state.energyZeroT = 0;
+          state.energyCntRemain = 0;
+          state._secLeft = undefined;
+          pill.hidden = true;
+        }
+        // hết giờ mà vẫn chưa hồi đủ → thua vì kiệt sức
+        else if (state.energyCntRemain <= 0) {
+          state.deathReason = 'fatigue';
+          return gameOver();
+        }
+      } else {
+        // đang >0% năng lượng
+        if (state.energyZeroT && state.energy >= ENERGY_DEATH.revivePct) {
+          state.energyZeroT = 0;
+          state.energyCntRemain = 0;
+          state._secLeft = undefined;
+          pill.hidden = true;
+        }
+      }
+    }
+
 
 
     state.speed += CONFIG.GAME.accel * dtEff/16.6;
@@ -974,6 +1040,7 @@ setTimeout(initMeta, 500);
     }
 
     applyStages();
+    applyStageSpeed(dtEff);
     // === Dynamic Director ===
     const TARGET = 0.55;
     const t = computeTension();
@@ -1344,6 +1411,10 @@ setTimeout(initMeta, 500);
     const s=Math.floor(state.score), next=Math.ceil(s/100)*100, diff=next-s;
     $('#overMsg').textContent = (s>0 && diff>0 && diff<=12) ? `Thiếu ${diff} điểm nữa là chạm ${next}!`
       : (s>state.best ? 'Kỷ lục mới! Lần sau vượt 2.500 nhé.' : 'Gần thôi, thêm chút “sượt nhẹ” là qua!');
+    if (state.deathReason === 'fatigue') {
+      $('#overMsg').textContent = `Kiệt sức: Hết ${ENERGY_DEATH.windowMs/1000}s mà không hồi ≥${ENERGY_DEATH.revivePct}% năng lượng.`;
+    }
+    state.deathReason = '';
 
     const payload={ deviceId:getDeviceId(), name:String(state.name||'').slice(0,16),
       score:Math.max(0,Math.floor(state.score)), tz:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC',
@@ -1368,6 +1439,12 @@ setTimeout(initMeta, 500);
     state.entities.length=0; state.particles.length=0; links.length=0;
     state.energy=60; state.shake=0; state.surgeMs=0; state.nextSurge=CONFIG.GAME.surgeEvery;
     state.combo=0; state.comboT=0; state.nearMissCount=0;
+    state.energyZeroT = 0;
+    state.energyCntRemain = 0;
+    state._secLeft = undefined;
+    state.deathReason = '';
+    const _pill = document.getElementById('cntDown'); if (_pill) _pill.hidden = true;
+
     state.grace=CONFIG.GAME.graceMs; state.stage=1; state.lastSlipT=0; $('#stageLabel').textContent='Stage 1';
     $('#playerName').hidden = !state.name;
     $('#playerName').textContent = state.name || '';
