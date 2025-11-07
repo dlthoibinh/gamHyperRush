@@ -248,6 +248,8 @@
     visibility: visible !important;
     opacity: 1 !important;
   }
+  /* Chỉ dùng energy bar, ẩn hẳn vòng tròn gauge */
+  #gauge, #gcv { display: none !important; }
 
   </style>
 </head>
@@ -764,8 +766,9 @@ setTimeout(initMeta, 500);
   new ResizeObserver(() => fitCanvas(canvas)).observe($('#wrap'));
 
 
-  const gcv = $('#gcv'); 
-  const gctx = gcv.getContext('2d');
+  const gcv = $('#gcv');
+  const gctx = gcv ? gcv.getContext('2d') : null;  // guard nếu bị ẩn/không có
+
 
   const energyFill = $('#energyFill');
 
@@ -1472,18 +1475,8 @@ setTimeout(initMeta, 500);
   }
 
   let lastGaugePct=-1;
-  function drawGauge(){
-    const pct = Math.floor(clamp(state.energy,0,100));
-    if (pct === lastGaugePct) return; lastGaugePct=pct;
-    const c=gctx; const w=gcv.width, h=gcv.height; c.clearRect(0,0,w,h);
-    c.save(); c.translate(w/2,h/2);
-    c.strokeStyle='rgba(148,163,184,.22)'; c.lineWidth=10; c.beginPath(); c.arc(0,0,26,0,Math.PI*2); c.stroke();
-    const end = -Math.PI/2 + (pct/100)*2*Math.PI;
-    const grad = c.createLinearGradient(-30,-30,30,30); grad.addColorStop(0,'#22d3ee'); grad.addColorStop(1,'#0ea5e9');
-    c.strokeStyle=grad; c.lineWidth=10; c.lineCap='round'; c.beginPath(); c.arc(0,0,26,-Math.PI/2, end); c.stroke();
-    c.fillStyle='rgba(255,255,255,.9)'; c.beginPath(); c.moveTo(-5,0); c.lineTo(0,-5); c.lineTo(5,0); c.lineTo(0,5); c.closePath(); c.fill();
-    c.restore();
-  }
+  function drawGauge(){ /* disabled: chỉ dùng energy bar */ }
+
   function drawEnergyBar(){
     const pct = clamp(state.energy,0,100);
     energyFill.style.width = pct + '%';
