@@ -964,7 +964,7 @@ setTimeout(initMeta, 500);
       if (frac > ANTI_MID.bandL && frac < ANTI_MID.bandR) {
         drain *= ANTI_MID.drainMul;
       }
-    }
+    
     // 3) Hồi tự nhiên khi KHÔNG giữ
     const passive = (!canFreeze) ? CONFIG.GAME.regenPassive * (dt / 10) : 0;
     
