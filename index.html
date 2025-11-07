@@ -48,7 +48,32 @@
     button:active{transform:translateY(1px)}
     input[type="text"]{flex:1;background:#0b1220;border:1px solid rgba(148,163,184,.2);border-radius:12px;color:#fff;padding:10px 12px;outline:none}
     label.switch{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
-    .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.4);z-index:40}
+    /* HUD bám theo bề rộng canvas + layout 2 hàng (pills trên, energy bar dưới) */
+    .hud{
+      position:absolute;
+      top:max(8px, env(safe-area-inset-top));
+      left:50%;
+      transform:translateX(-50%);
+      width:var(--cw);
+      padding:8px 12px;
+    
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;                 /* 👈 Cho phép xuống hàng */
+      z-index:40;
+    }
+    .hud .pill{
+      display:inline-flex;
+      align-items:center;
+      height:28px;
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(2,6,23,.55);
+      border:1px solid rgba(148,163,184,.15);
+      white-space:nowrap;             /* 👈 Không bẻ chữ ở hàng 1 */
+    }
+
     .pill{background:rgba(2,6,23,.55);border:1px solid rgba(148,163,184,.15);padding:8px 12px;border-radius:999px}
     .hint{font-size:12px;color:var(--muted)}
     .small{font-size:12px}
@@ -133,21 +158,34 @@
       #game{ border-radius: 18px; }
     }
     /* ==== Energy bar ==== */
+    /* ==== Energy bar: chiếm trọn hàng thứ 2, full bề rộng canvas ==== */
     #energyWrap{
-      flex:1;
-      height:10px;                /* độ cao bar */
-      margin:0 12px;
+      order:99;                       /* 👈 Đẩy xuống cuối hàng 1 */
+      flex:1 1 100%;                  /* 👈 Bắt buộc xuống hàng riêng */
+      width:100%;
+      height:clamp(8px, 1.4vh, 12px);
+      margin-top:6px;
+    
       background:rgba(2,6,23,.55);
       border:1px solid rgba(148,163,184,.15);
       border-radius:999px;
       overflow:hidden;
+      box-shadow:
+        inset 0 1px 2px rgba(255,255,255,.06),
+        0 0 0 1px rgba(2,6,23,.25);   /* viền tinh tế cho “chất game pro” */
     }
     #energyFill{
       height:100%;
-      width:100%;                 /* sẽ bị JS chỉnh % */
-      background:linear-gradient(90deg,#16a34a,#22d3ee);
-      transition:width .15s linear;
+      width:100%;                     /* JS sẽ cập nhật width:% */
+      transform-origin:left center;
+      transition:width .18s cubic-bezier(.2,.6,.2,1);
+      background:linear-gradient(90deg,#16a34a,#22d3ee);  /* >60% xanh */
+      box-shadow:inset 0 0 12px rgba(34,211,238,.25);
     }
+    @media (min-width:900px){
+      #energyWrap{ height:14px; }
+    }
+
     #aboutBar{
       position:absolute;
       left:8px;
