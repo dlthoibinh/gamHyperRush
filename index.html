@@ -475,6 +475,15 @@ setTimeout(initMeta, 500);
 
   /* ===== Anti-exploit ===== */
   /* ===== Anti-exploit (tinh chỉnh) ===== */
+  /* --------- Midline Hazard (ô đỏ giữa 2 làn) --------- */
+  const MID_HAZARD = {
+    enable: true,          // bật/tắt nhanh
+    dwellMs: 420,          // phải đứng trong “vùng giữa” ít nhất 0.42s mới kích hoạt
+    cooldownMs: 800,       // mỗi lần sinh cách nhau tối thiểu 0.8s
+    gapAhead: 130,         // sinh cách người chơi một khoảng an toàn để kịp phản xạ
+    r: 7                   // bán kính va chạm của ô đỏ
+  };
+
   const ANTI = {
     campMs: 1800,          // >1.8 s không đổi làn
     campCooldownMs: 1000,  // giãn cách giữa 2 lần ép
@@ -615,7 +624,8 @@ setTimeout(initMeta, 500);
   }
 
   /* ----- Hitbox & hình học ----- */
-  const HIT = { P_W:30, P_H:30, OB_W:36, OB_H:36, NEAR_PAD:8 };
+  const HIT = { P_W:30, P_H:30, OB_W:36, OB_H:36, NEAR_PAD:8, MID_R: 7 };
+
   function aabb(ax, ay, aw, ah, bx, by, bw, bh){
     return (Math.abs(ax - bx) <= (aw + bw) * 0.5) && (Math.abs(ay - by) <= (ah + bh) * 0.5);
   }
@@ -792,6 +802,8 @@ setTimeout(initMeta, 500);
     energyCntRemain: 0,         // ms còn lại của countdown
     _secLeft: undefined,        // số giây còn lại (để update pill mỗi giây)
     deathReason: '',            // '' | 'fatigue'
+    lastMidSpawnT: 0,     // lần gần nhất đã spawn ô đỏ
+    midDwell: 0,          // ms đã đứng trong “vùng giữa”
 
     holding:false,
     lastNearT: 0,
@@ -1126,7 +1138,25 @@ setTimeout(initMeta, 500);
         }
       }
     }
-
+    /* === PATCH A: Midline dwell + spawn mid-hazard === */
+    {
+      const frac = state.lane - Math.floor(state.lane);
+      const inMid = (frac > ANTI_MID.bandL && frac < ANTI_MID.bandR);
+    
+      // đếm thời gian đứng trong vùng giữa
+      state.midDwell = inMid ? (state.midDwell + dtEff) : 0;
+    
+      const camping     = (now() - state.lastLaneChangeT > ANTI.campMs);
+      const outOfEnergy = (state.energy <= 0) || !!state.energyZeroT;
+    
+      if (inMid &&
+          state.midDwell >= MID_HAZARD.dwellMs &&
+          (outOfEnergy || camping) &&
+          (now() - state.lastMidSpawnT >= MID_HAZARD.cooldownMs)) {
+        spawnMidHazard();                 // sinh ô đỏ giữa 2 làn ngay phía trước
+        addLink(state.playerY - 8, true); // hiệu ứng chấm đỏ cảnh báo
+      }
+    }
     /* Theo dõi đổi làn nguyên để reset đồng hồ camping */
     {
       const li = Math.round(state.desiredLane);
@@ -1225,6 +1255,24 @@ setTimeout(initMeta, 500);
         if (e.lane===L && Math.abs(ey - py) < 34) eLnear = e;
         if (e.lane===R && Math.abs(ey - py) < 34) eRnear = e;
       }
+      /* === PATCH B: Collide mid-hazard === */
+      if (e.type === 'mid') {
+        const collided =
+          (state.grace <= 0) &&
+          (Math.hypot(px - e.mx, py - e.y) <= (HIT.P_W * 0.5 + HIT.MID_R - 2));
+      
+        if (collided) {
+          if (state.score > state.best){
+            state.best = Math.floor(state.score);
+            localStorage.setItem('hrfz_best', state.best);
+          }
+          boom();
+          spawnParticles(px, py, '#e11d48', 22, 1.6);
+          AudioKit.sfx('hit');
+          vibrate([50,40,80]);
+          return gameOver();
+        }
+      }
 
       if (e.y - py > HIT.OB_H) e.nearDone = false;
       if (e.y > H+50) state.entities.splice(i,1);
@@ -1294,7 +1342,27 @@ setTimeout(initMeta, 500);
     return (filled === CONFIG.GAME.lanes - 1) ? empty : -1;
   }
 
-
+  function midlineXBetween(laneLeft){ // laneLeft và laneLeft+1 là 2 làn kề nhau
+    const xL = laneX(laneLeft), xR = laneX(laneLeft+1);
+    return (xL + xR) * 0.5;
+  }
+  function spawnMidHazard(){
+    if (!MID_HAZARD.enable) return;
+    // chỉ sinh khi còn slot entity
+    if (state.entities.length >= CONFIG.PERF.maxEntities) return;
+  
+    const L = Math.floor(state.lane);
+    if (L < 0 || L >= CONFIG.GAME.lanes-1) return; // chỉ giữa hai làn kề
+  
+    const y0 = state.playerY - Math.max(CONFIG.GAME.minGapObPx, MID_HAZARD.gapAhead);
+    // tránh đè lên entity khác trong cùng cột y
+    for (const e of state.entities){
+      if (Math.abs((e.y || 0) - y0) < 30) return;
+    }
+    state.entities.push({ type:'mid', mx: midlineXBetween(L), y: y0 });
+    state.lastMidSpawnT = now();
+  }
+  
 
   /* ====== Spawn khối ====== */
   function trySpawn(){
@@ -1438,6 +1506,22 @@ setTimeout(initMeta, 500);
     g.addColorStop(0,'rgba(255,255,255,0.85)');
     g.addColorStop(1,'rgba(56,189,248,0.9)');
     ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  function drawMidDot(x, y){
+    ctx.save(); ctx.translate(x,y);
+    if (!mqlReduce.matches){
+      ctx.fillStyle='rgba(0,0,0,.28)';
+      ctx.beginPath(); ctx.ellipse(0, MID_HAZARD.r, MID_HAZARD.r*0.9, MID_HAZARD.r*0.35, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(0,0,MID_HAZARD.r,0,Math.PI*2);
+    ctx.fillStyle='#ef4444';
+    ctx.fill();
+    ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(0,0,0,.45)';
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -1627,8 +1711,12 @@ setTimeout(initMeta, 500);
     if (!lite) drawRoad();
 
     // 1) Entities trước
-    for (const e of state.entities)
-      (e.type==='ob') ? drawObstacle(laneX(e.lane), e.y) : drawOrb(laneX(e.lane), e.y);
+    for (const e of state.entities){
+      if (e.type === 'ob')       drawObstacle(laneX(e.lane), e.y);
+      else if (e.type === 'orb') drawOrb(laneX(e.lane), e.y);
+      else if (e.type === 'mid') drawMidDot(e.mx, e.y);
+    }
+
 
     // 2) ✨ Links sau để luôn nằm trên các khối
     drawLinks();
