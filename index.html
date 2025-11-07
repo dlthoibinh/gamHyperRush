@@ -237,6 +237,17 @@
     background:rgba(2,6,23,.6); color:#e5f0ff; font-size:18px; cursor:pointer; border:1px solid rgba(148,163,184,.18);
   }
   #cntDown{ justify-content:center; min-width:64px; }
+  /* HUD phải ở trên gauge */
+  .hud{ z-index: 60; }
+  
+  /* Pill đếm ngược: luôn sẵn sàng hiển thị */
+  #cntDown{
+    display: inline-flex !important;
+    justify-content: center;
+    min-width: 64px;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
 
   </style>
 </head>
@@ -347,19 +358,46 @@
   'use strict';
 /* === Utils đặt lên đầu để dùng ngay === */
 const $ = sel => document.querySelector(sel);
+// Bảo hiểm: nếu thiếu <div id="cntDown"> thì tự chèn trước energy bar
+if (!document.getElementById('cntDown')) {
+  const pill = document.createElement('div');
+  pill.id = 'cntDown';
+  pill.className = 'pill small';
+  pill.hidden = true;
+  const hud = document.getElementById('uiHUD');
+  const energyWrap = document.getElementById('energyWrap');
+  hud.insertBefore(pill, energyWrap || hud.firstChild);
+}
+
 // == Countdown HUD helpers (robust) ==
-const _cntEl = document.getElementById('cntDown');
+const $cnt = document.getElementById('cntDown');
+
 function showCountdown(sec){
-  if (!_cntEl) return;
-  _cntEl.removeAttribute('hidden');     // bỏ [hidden]
-  _cntEl.style.display = 'inline-flex'; // ép hiển thị trong .hud
-  _cntEl.textContent = `⚠ ${sec}s`;
+  if (!$cnt) return;
+  // Gỡ hidden theo cả 2 cách để triệt rule [hidden]{display:none !important;}
+  $cnt.hidden = false;
+  $cnt.removeAttribute('hidden');
+
+  // Ép inline để thắng mọi CSS khác
+  $cnt.style.display = 'inline-flex';
+  $cnt.style.visibility = 'visible';
+  $cnt.style.opacity = '1';
+
+  $cnt.textContent = `⚠ ${sec}s`;
 }
+
 function hideCountdown(){
-  if (!_cntEl) return;
-  _cntEl.setAttribute('hidden', '');    // ẩn lại
-  _cntEl.style.display = '';            // trả về mặc định theo CSS
+  if (!$cnt) return;
+  // Cài lại hidden theo cả property + attribute
+  $cnt.hidden = true;
+  $cnt.setAttribute('hidden', '');
+
+  // Trả style về mặc định
+  $cnt.style.display = '';
+  $cnt.style.visibility = '';
+  $cnt.style.opacity = '';
 }
+
 
 /* META hiển thị góc trái dưới */
 const META = { version: '', author: '' };
