@@ -160,19 +160,19 @@
     /* ==== Energy bar ==== */
     /* ==== Energy bar: chiếm trọn hàng thứ 2, full bề rộng canvas ==== */
     #energyWrap{
-      order:99;                       /* 👈 Đẩy xuống cuối hàng 1 */
-      flex:1 1 100%;                  /* 👈 Bắt buộc xuống hàng riêng */
-      width:100%;
-      height:clamp(8px, 1.4vh, 12px);
-      margin-top:6px;
+      order: 99;                 /* đứng cuối hàng 1 của HUD */
+      flex: 0 0 100%;            /* buộc xuống hàng riêng */
+      width: min(33vw, var(--cw));  /* 1/3 viewport, nhưng không vượt bề rộng canvas */
+      height: clamp(8px, 1.4vh, 12px);
+      margin: 6px auto 0;        /* căn giữa ngang */
     
-      background:rgba(2,6,23,.55);
-      border:1px solid rgba(148,163,184,.15);
-      border-radius:999px;
-      overflow:hidden;
+      background: rgba(2,6,23,.55);
+      border: 1px solid rgba(148,163,184,.15);
+      border-radius: 999px;
+      overflow: hidden;
       box-shadow:
         inset 0 1px 2px rgba(255,255,255,.06),
-        0 0 0 1px rgba(2,6,23,.25);   /* viền tinh tế cho “chất game pro” */
+        0 0 0 1px rgba(2,6,23,.25);
     }
     #energyFill{
       height:100%;
